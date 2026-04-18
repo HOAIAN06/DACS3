@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.fastdash_android"
+    namespace = "com.fastdash.app"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.example.fastdash_android"
+        applicationId = "com.fastdash.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
