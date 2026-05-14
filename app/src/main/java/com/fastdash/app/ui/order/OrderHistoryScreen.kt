@@ -31,6 +31,8 @@ data class OrderHistoryUiModel(
     val status: String
 )
 
+private val PrimaryBlack = Color(0xFF1C1C1C)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrderHistoryScreen(
@@ -86,19 +88,20 @@ private fun OrderCard(order: OrderHistoryUiModel, onClick: () -> Unit) {
             ) {
                 Text(
                     text = order.code,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    color = PrimaryBlack
                 )
                 Surface(
-                    color = getStatusColor(order.status).copy(alpha = 0.1f),
-                    shape = RoundedCornerShape(4.dp)
+                    color = getStatusColor(order.status).copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(999.dp)
                 ) {
                     Text(
-                        text = order.status,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        text = order.status.uppercase(),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                         color = getStatusColor(order.status),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black
                     )
                 }
             }

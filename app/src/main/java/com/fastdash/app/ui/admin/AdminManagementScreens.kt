@@ -270,7 +270,7 @@ fun AdminCategoriesScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = category.name,
+                                        text = category.name.orEmpty().ifBlank { "(Không tên)" },
                                         color = AdminText,
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 15.sp
@@ -463,12 +463,24 @@ fun AdminOrdersScreen(
     var updatingOrderId by remember { mutableStateOf<Long?>(null) }
     var showStatusDropdown by remember { mutableStateOf(false) }
 
+    suspend fun loadOrders() {
+        val response = repository.getOrders()
+        if (response.isSuccessful) {
+            orders = response.body().orEmpty()
+            errorMessage = null
+        } else {
+            val serverError = response.errorBody()?.string().orEmpty()
+            throw IllegalStateException(
+                "Không tải được đơn hàng (${response.code()})${if (serverError.isNotBlank()) ": $serverError" else ""}"
+            )
+        }
+    }
+
     LaunchedEffect(Unit) {
         loading = true
         errorMessage = null
         try {
-            val response = repository.getOrders()
-            orders = response.body().orEmpty()
+            loadOrders()
         } catch (e: Exception) {
             errorMessage = e.message ?: "Không tải được đơn hàng"
         } finally {
@@ -670,7 +682,13 @@ fun AdminOrdersScreen(
                                                     .clickable {
                                                         scope.launch {
                                                             try {
-                                                                statusRepository.updateOrderStatus(order.id, status)
+                                                                val updateResponse = statusRepository.updateOrderStatus(order.id, status)
+                                                                if (!updateResponse.isSuccessful) {
+                                                                    val serverError = updateResponse.errorBody()?.string().orEmpty()
+                                                                    throw IllegalStateException(
+                                                                        "Cập nhật trạng thái thất bại (${updateResponse.code()})${if (serverError.isNotBlank()) ": $serverError" else ""}"
+                                                                    )
+                                                                }
                                                                 Toast.makeText(
                                                                     context,
                                                                     "Cập nhật trạng thái thành công",
@@ -679,8 +697,7 @@ fun AdminOrdersScreen(
                                                                 updatingOrderId = null
                                                                 showStatusDropdown = false
                                                                 loading = true
-                                                                val response = repository.getOrders()
-                                                                orders = response.body().orEmpty()
+                                                                loadOrders()
                                                                 loading = false
                                                             } catch (e: Exception) {
                                                                 errorMessage = e.message
@@ -1329,7 +1346,7 @@ fun AdminToppingsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = topping.name,
+                                        text = topping.name.orEmpty().ifBlank { "(Không tên)" },
                                         color = AdminText,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp

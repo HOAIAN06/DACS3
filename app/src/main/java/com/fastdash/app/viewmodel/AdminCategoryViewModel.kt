@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.Response
 
 data class AdminCategoryUiState(
     val categories: List<AdminCategoryResponse> = emptyList(),
@@ -43,9 +44,14 @@ class AdminCategoryViewModel(
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
                 val response = repository.getCategories()
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Tải danh mục", response))
+                }
+                val categories = response.body()
+                    ?: throw IllegalStateException("Tải danh mục thất bại: BE trả body rỗng")
                 _uiState.update {
                     it.copy(
-                        categories = response.body().orEmpty(),
+                        categories = categories,
                         loading = false,
                         message = null,
                         isError = false
@@ -93,7 +99,7 @@ class AdminCategoryViewModel(
             it.copy(
                 showAddForm = true,
                 editingId = category.id,
-                nameInput = category.name,
+                nameInput = category.name.orEmpty(),
                 descriptionInput = category.description.orEmpty(),
                 formMessage = null,
                 formError = false
@@ -136,7 +142,10 @@ class AdminCategoryViewModel(
                     name = state.nameInput.trim(),
                     description = state.descriptionInput.trim().ifBlank { null }
                 )
-                repository.createCategory(request)
+                val response = repository.createCategory(request)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Thêm danh mục", response))
+                }
                 _uiState.update {
                     it.copy(
                         formLoading = false,
@@ -176,7 +185,10 @@ class AdminCategoryViewModel(
                     name = state.nameInput.trim(),
                     description = state.descriptionInput.trim().ifBlank { null }
                 )
-                repository.updateCategory(categoryId, request)
+                val response = repository.updateCategory(categoryId, request)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Cập nhật danh mục", response))
+                }
                 _uiState.update {
                     it.copy(
                         formLoading = false,
@@ -205,7 +217,10 @@ class AdminCategoryViewModel(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                repository.deleteCategory(categoryId)
+                val response = repository.deleteCategory(categoryId)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Xóa danh mục", response))
+                }
                 _uiState.update {
                     it.copy(
                         loading = false,
@@ -231,7 +246,10 @@ class AdminCategoryViewModel(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                repository.updateCategoryStatus(categoryId, newStatus)
+                val response = repository.updateCategoryStatus(categoryId, newStatus)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Cập nhật trạng thái danh mục", response))
+                }
                 _uiState.update {
                     it.copy(
                         loading = false,
@@ -250,5 +268,10 @@ class AdminCategoryViewModel(
                 }
             }
         }
+    }
+
+    private fun buildApiError(action: String, response: Response<*>): String {
+        val serverError = response.errorBody()?.string().orEmpty()
+        return "$action thất bại (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else ""
     }
 }

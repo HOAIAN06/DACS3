@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.Response
 
 data class AdminToppingUiState(
     val toppings: List<AdminToppingResponse> = emptyList(),
@@ -44,9 +45,14 @@ class AdminToppingViewModel(
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
                 val response = repository.getToppings()
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Tải topping", response))
+                }
+                val toppings = response.body()
+                    ?: throw IllegalStateException("Tải topping thất bại: BE trả body rỗng")
                 _uiState.update {
                     it.copy(
-                        toppings = response.body().orEmpty(),
+                        toppings = toppings,
                         loading = false,
                         message = null,
                         isError = false
@@ -99,7 +105,7 @@ class AdminToppingViewModel(
             it.copy(
                 showAddForm = true,
                 editingId = topping.id,
-                nameInput = topping.name,
+                nameInput = topping.name.orEmpty(),
                 priceInput = topping.price.toString(),
                 imageUrlInput = topping.imageUrl.orEmpty(),
                 formMessage = null,
@@ -151,7 +157,10 @@ class AdminToppingViewModel(
                     price = price,
                     imageUrl = state.imageUrlInput.trim().ifBlank { null }
                 )
-                repository.createTopping(request)
+                val response = repository.createTopping(request)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Thêm topping", response))
+                }
                 _uiState.update {
                     it.copy(
                         formLoading = false,
@@ -199,7 +208,10 @@ class AdminToppingViewModel(
                     price = price,
                     imageUrl = state.imageUrlInput.trim().ifBlank { null }
                 )
-                repository.updateTopping(toppingId, request)
+                val response = repository.updateTopping(toppingId, request)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Cập nhật topping", response))
+                }
                 _uiState.update {
                     it.copy(
                         formLoading = false,
@@ -229,7 +241,10 @@ class AdminToppingViewModel(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                repository.deleteTopping(toppingId)
+                val response = repository.deleteTopping(toppingId)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Xóa topping", response))
+                }
                 _uiState.update {
                     it.copy(
                         loading = false,
@@ -255,7 +270,10 @@ class AdminToppingViewModel(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                repository.updateToppingStatus(toppingId, newStatus)
+                val response = repository.updateToppingStatus(toppingId, newStatus)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Cập nhật trạng thái topping", response))
+                }
                 _uiState.update {
                     it.copy(
                         loading = false,
@@ -274,5 +292,10 @@ class AdminToppingViewModel(
                 }
             }
         }
+    }
+
+    private fun buildApiError(action: String, response: Response<*>): String {
+        val serverError = response.errorBody()?.string().orEmpty()
+        return "$action thất bại (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else ""
     }
 }

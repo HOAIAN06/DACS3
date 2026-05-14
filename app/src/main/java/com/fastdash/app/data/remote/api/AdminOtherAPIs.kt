@@ -1,6 +1,7 @@
 package com.fastdash.app.data.remote.api
 
 import com.fastdash.app.data.model.response.OrderResponse
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -37,7 +38,7 @@ data class AdminToppingResponse(
     val id: Long,
     val name: String,
     val price: Double,
-    val imageUrl: String? = null,
+    @SerializedName(value = "imageUrl", alternate = ["image_url", "url", "secure_url"]) val imageUrl: String? = null,
     val status: Int,
     val createdAt: String
 )
@@ -83,6 +84,7 @@ data class AdminSizeResponse(
 )
 
 data class CreateSizeRequest(
+    @SerializedName("sizeName")
     val sizeName: String,
     val price: Double
 )
@@ -122,6 +124,14 @@ interface AdminOrderStatusApi {
          @Path("id") id: Long,
          @Body request: UpdateOrderStatusRequest
      ): Response<OrderResponse>
+}
+
+interface AdminOrderApi {
+    @GET("api/v1/admin/orders")
+    suspend fun getOrders(): Response<List<OrderResponse>>
+
+    @GET("api/v1/admin/orders/{id}")
+    suspend fun getOrderDetail(@Path("id") id: Long): Response<OrderResponse>
 }
 
 data class UpdateOrderStatusRequest(
@@ -202,21 +212,42 @@ interface AdminProductApiExtended {
 data class AdminProductResponse(
      val id: Long,
      val categoryId: Long,
-     val name: String,
-     val description: String,
-     val basePrice: Double,
-     val imageUrl: String,
+     val name: String? = null,
+     val description: String? = null,
+     @SerializedName(value = "basePrice", alternate = ["base_price"]) val basePrice: Double,
+     @SerializedName(
+         value = "imageUrl",
+         alternate = [
+             "image_url",
+             "imagePath",
+             "image_path",
+             "image",
+             "productImageUrl",
+             "product_image_url",
+             "thumbnailUrl",
+             "thumbnail_url",
+             "url",
+             "secure_url",
+             "photoUrl",
+             "photo_url"
+         ]
+     )
+      val imageUrl: String? = null,
      val isCustomizable: Int,
      val status: Int,
-     val createdAt: String
+     val createdAt: String? = null
 )
 
 data class UpdateProductRequest(
+     @SerializedName("categoryId")
      val categoryId: Long,
      val name: String,
      val description: String,
+     @SerializedName("basePrice")
      val basePrice: Double,
+     @SerializedName("imageUrl")
      val imageUrl: String,
+     @SerializedName("isCustomizable")
      val isCustomizable: Int
 )
 

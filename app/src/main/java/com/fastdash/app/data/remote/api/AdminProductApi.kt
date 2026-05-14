@@ -3,6 +3,7 @@ package com.fastdash.app.data.remote.api
 import com.fastdash.app.data.model.request.AdminProductRequest
 import com.fastdash.app.data.model.response.ProductResponse
 import com.fastdash.app.data.model.response.UploadImageResponse
+import retrofit2.Response
 import okhttp3.MultipartBody
 import retrofit2.http.Body
 import retrofit2.http.Multipart
@@ -15,10 +16,10 @@ interface AdminProductApi {
     @POST("/api/v1/admin/uploads/image")
     suspend fun uploadImage(
         @Part file: MultipartBody.Part
-    ): UploadImageResponse
+    ): Response<UploadImageResponse>
 
     @POST("/api/v1/admin/products")
     suspend fun createProduct(
         @Body request: AdminProductRequest
-    ): ProductResponse
+    ): Response<ProductResponse>
 }

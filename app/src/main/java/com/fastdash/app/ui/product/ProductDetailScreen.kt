@@ -8,18 +8,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -42,9 +41,15 @@ fun ProductDetailScreen(
     onBack: () -> Unit,
     onAddToCart: (productId: Long, quantity: Int, sizeName: String?, toppingIds: List<Long>) -> Unit
 ) {
-    var selectedSize by remember { mutableStateOf<String?>(sizes.firstOrNull()?.sizeName) }
+    var selectedSize by remember { mutableStateOf<String?>(null) }
     var quantity by remember { mutableIntStateOf(1) }
     val selectedToppings = remember { mutableStateListOf<Long>() }
+
+    LaunchedEffect(sizes) {
+        if (selectedSize.isNullOrBlank()) {
+            selectedSize = sizes.firstOrNull { !it.sizeName.isNullOrBlank() }?.sizeName
+        }
+    }
 
     val sizePrice = sizes.firstOrNull { it.sizeName == selectedSize }?.price ?: product.basePrice
     val toppingsPrice = toppings.filter { selectedToppings.contains(it.id) }.sumOf { it.price }
@@ -60,7 +65,7 @@ fun ProductDetailScreen(
             item {
                 Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
                     AsyncImage(
-                        model = ImageUtils.formatImageUrl(product.imageUrl),
+                        model = ImageUtils.buildImageRequest(LocalContext.current, product.imageUrl),
                         contentDescription = product.name,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -109,8 +114,10 @@ fun ProductDetailScreen(
                     Surface(modifier = Modifier.fillMaxWidth(), color = SurfaceWhite) {
                         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
                             sizes.forEach { size ->
+                                val safeSizeName = size.sizeName?.takeIf { it.isNotBlank() } ?: "(Không tên)"
                                 SizeSelectionItem(
                                     size = size,
+                                    displayName = safeSizeName,
                                     isSelected = selectedSize == size.sizeName,
                                     onClick = { selectedSize = size.sizeName }
                                 )
@@ -148,7 +155,7 @@ fun ProductDetailScreen(
                 .size(40.dp)
                 .background(Color.Black.copy(alpha = 0.3f), CircleShape)
         ) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = Color.White)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
         }
 
         // Sticky Bottom Bar
@@ -226,6 +233,7 @@ private fun SectionDivider(title: String) {
 @Composable
 private fun SizeSelectionItem(
     size: ProductSizeResponse,
+    displayName: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
@@ -242,12 +250,12 @@ private fun SizeSelectionItem(
             colors = RadioButtonDefaults.colors(selectedColor = PizzaHutRed)
         )
         Spacer(Modifier.width(12.dp))
-        Text(
-            text = size.sizeName,
-            fontSize = 16.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier.weight(1f)
-        )
+            Text(
+                text = displayName,
+                fontSize = 16.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+            )
         Text(
             text = CurrencyUtils.formatVnd(size.price),
             fontSize = 14.sp,
@@ -277,7 +285,7 @@ private fun ToppingSelectionItem(
             )
             Spacer(Modifier.width(12.dp))
             Text(
-                text = topping.name,
+                text = topping.name?.takeIf { it.isNotBlank() } ?: "(Không tên)",
                 fontSize = 16.sp,
                 modifier = Modifier.weight(1f)
             )

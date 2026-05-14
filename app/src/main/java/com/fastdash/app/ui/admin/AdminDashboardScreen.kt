@@ -86,21 +86,50 @@ fun AdminDashboardScreen(
 
     var stats by remember { mutableStateOf(AdminDashboardStats(loading = true)) }
 
+    suspend fun loadDashboardStats() {
+        val productsResponse = productRepository.getProducts()
+        if (!productsResponse.isSuccessful) {
+            val serverError = productsResponse.errorBody()?.string().orEmpty()
+            throw IllegalStateException(
+                "Không tải được danh sách sản phẩm (${productsResponse.code()})${if (serverError.isNotBlank()) ": $serverError" else ""}"
+            )
+        }
+
+        val categoriesResponse = categoryRepository.getCategories()
+        if (!categoriesResponse.isSuccessful) {
+            val serverError = categoriesResponse.errorBody()?.string().orEmpty()
+            throw IllegalStateException(
+                "Không tải được danh mục (${categoriesResponse.code()})${if (serverError.isNotBlank()) ": $serverError" else ""}"
+            )
+        }
+
+        val ordersResponse = orderRepository.getOrders()
+        if (!ordersResponse.isSuccessful) {
+            val serverError = ordersResponse.errorBody()?.string().orEmpty()
+            throw IllegalStateException(
+                "Không tải được đơn hàng (${ordersResponse.code()})${if (serverError.isNotBlank()) ": $serverError" else ""}"
+            )
+        }
+
+        val products = productsResponse.body().orEmpty()
+        val categories = categoriesResponse.body().orEmpty()
+        val orders = ordersResponse.body().orEmpty()
+
+        stats = AdminDashboardStats(
+            totalOrders = orders.size,
+            revenue = orders.sumOf { it.totalAmount },
+            pendingOrders = orders.count { it.status.isPendingStatus() },
+            completedOrders = orders.count { it.status.isCompletedStatus() },
+            products = products.size,
+            categories = categories.size,
+            loading = false,
+            errorMessage = null
+        )
+    }
+
     LaunchedEffect(Unit) {
         try {
-            val products = runCatching { productRepository.getProducts() }.getOrNull()?.body().orEmpty()
-            val categories = runCatching { categoryRepository.getCategories() }.getOrNull()?.body().orEmpty()
-            val orders = runCatching { orderRepository.getOrders() }.getOrNull()?.body().orEmpty()
-
-            stats = AdminDashboardStats(
-                totalOrders = orders.size,
-                revenue = orders.sumOf { it.totalAmount },
-                pendingOrders = orders.count { it.status.lowercase() == "pending" },
-                completedOrders = orders.count { it.status.lowercase() == "completed" },
-                products = products.size,
-                categories = categories.size,
-                loading = false
-            )
+            loadDashboardStats()
         } catch (e: Exception) {
             stats = stats.copy(loading = false, errorMessage = e.message)
         }
@@ -125,6 +154,15 @@ fun AdminDashboardScreen(
             } else {
                 // Key Stats Grid
                 AdminStatsGrid(stats)
+
+                if (stats.errorMessage != null) {
+                    Spacer(Modifier.height(12.dp))
+                    DashboardInfoCard(
+                        title = "Lỗi tải dữ liệu",
+                        subtitle = stats.errorMessage!!,
+                        accentColor = WarningGold
+                    )
+                }
 
                 Spacer(Modifier.height(24.dp))
 
@@ -171,6 +209,15 @@ fun AdminDashboardScreen(
             }
         }
     }
+}
+
+private fun String.isPendingStatus(): Boolean {
+    val normalized = trim().uppercase()
+    return normalized == "PENDING" || normalized == "CONFIRMED" || normalized == "PREPARING" || normalized == "DELIVERING"
+}
+
+private fun String.isCompletedStatus(): Boolean {
+    return trim().uppercase() == "COMPLETED"
 }
 
 @Composable
@@ -355,3 +402,37 @@ private fun ModuleItem(modifier: Modifier, module: AdminModule, onClick: () -> U
         }
     }
 }
+
+@Composable
+private fun DashboardInfoCard(title: String, subtitle: String, accentColor: Color) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = accentColor.copy(alpha = 0.1f)
+            ) {
+                Text(
+                    text = title,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    color = accentColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+            Text(
+                text = subtitle,
+                color = PrimaryBlack,
+                fontSize = 13.sp,
+                lineHeight = 18.sp
+            )
+        }
+    }
+}
+

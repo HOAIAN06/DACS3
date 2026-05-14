@@ -32,6 +32,7 @@ import com.fastdash.app.data.repository.AdminPaymentRepository
 import com.fastdash.app.data.repository.AdminUserRepository
 import com.fastdash.app.utils.CurrencyUtils
 import kotlinx.coroutines.launch
+import retrofit2.Response
 
 private val AdminRed = Color(0xFFE31837)
 private val AdminBlue = Color(0xFF0078AE)
@@ -61,7 +62,11 @@ fun AdminUsersScreen(
         loading = true
         try {
             val response = repository.getUsers()
-            users = response.body().orEmpty()
+            if (!response.isSuccessful) {
+                throw IllegalStateException(buildApiError("Tải danh sách người dùng", response))
+            }
+            users = response.body()
+                ?: throw IllegalStateException("Tải danh sách người dùng thất bại: BE trả body rỗng")
         } catch (e: Exception) {
             errorMessage = e.message
         } finally {
@@ -191,12 +196,19 @@ fun AdminUsersScreen(
                                 onClick = {
                                     scope.launch {
                                         try {
-                                            repository.updateUserStatus(user.id, if (user.status == 1) 0 else 1)
+                                            val updateResponse = repository.updateUserStatus(user.id, if (user.status == 1) 0 else 1)
+                                            if (!updateResponse.isSuccessful) {
+                                                throw IllegalStateException(buildApiError("Cập nhật trạng thái người dùng", updateResponse))
+                                            }
                                             Toast.makeText(context, "Cập nhật thành công", Toast.LENGTH_SHORT).show()
                                             selectedUserId = null
                                             loading = true
                                             val response = repository.getUsers()
-                                            users = response.body().orEmpty()
+                                            if (!response.isSuccessful) {
+                                                throw IllegalStateException(buildApiError("Tải danh sách người dùng", response))
+                                            }
+                                            users = response.body()
+                                                ?: throw IllegalStateException("Tải danh sách người dùng thất bại: BE trả body rỗng")
                                             loading = false
                                         } catch (e: Exception) {
                                             errorMessage = e.message
@@ -243,7 +255,11 @@ fun AdminBranchesScreen(
         scope.launch {
             try {
                 val response = repository.getBranches()
-                branches = response.body().orEmpty()
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Tải chi nhánh", response))
+                }
+                branches = response.body()
+                    ?: throw IllegalStateException("Tải chi nhánh thất bại: BE trả body rỗng")
             } catch (e: Exception) {
                 errorMessage = e.message
             } finally {
@@ -331,7 +347,10 @@ fun AdminBranchesScreen(
                                         openTime = formOpenTime.takeIf { it.isNotBlank() },
                                         closeTime = formCloseTime.takeIf { it.isNotBlank() }
                                     )
-                                    repository.createBranch(request)
+                                    val createResponse = repository.createBranch(request)
+                                    if (!createResponse.isSuccessful) {
+                                        throw IllegalStateException(buildApiError("Thêm chi nhánh", createResponse))
+                                    }
                                     Toast.makeText(context, "Thêm thành công", Toast.LENGTH_SHORT).show()
                                     formName = ""
                                     formAddress = ""
@@ -440,7 +459,11 @@ fun AdminPaymentsScreen(
         loading = true
         try {
             val response = repository.getPayments()
-            payments = response.body().orEmpty()
+            if (!response.isSuccessful) {
+                throw IllegalStateException(buildApiError("Tải thanh toán", response))
+            }
+            payments = response.body()
+                ?: throw IllegalStateException("Tải thanh toán thất bại: BE trả body rỗng")
         } catch (e: Exception) {
             errorMessage = e.message
         } finally {
@@ -561,13 +584,20 @@ fun AdminPaymentsScreen(
                                         onClick = {
                                             scope.launch {
                                                 try {
-                                                    repository.updatePaymentStatus(payment.id, newStatus)
+                                                    val updateResponse = repository.updatePaymentStatus(payment.id, newStatus)
+                                                    if (!updateResponse.isSuccessful) {
+                                                        throw IllegalStateException(buildApiError("Cập nhật trạng thái thanh toán", updateResponse))
+                                                    }
                                                     Toast.makeText(context, "Cập nhật thành công", Toast.LENGTH_SHORT).show()
                                                     selectedPaymentId = null
                                                     newStatus = ""
                                                     loading = true
                                                     val response = repository.getPayments()
-                                                    payments = response.body().orEmpty()
+                                                    if (!response.isSuccessful) {
+                                                        throw IllegalStateException(buildApiError("Tải thanh toán", response))
+                                                    }
+                                                    payments = response.body()
+                                                        ?: throw IllegalStateException("Tải thanh toán thất bại: BE trả body rỗng")
                                                     loading = false
                                                 } catch (e: Exception) {
                                                     errorMessage = e.message
@@ -744,6 +774,11 @@ private fun StatusBadge(status: String) {
             fontWeight = FontWeight.Bold
         )
     }
+}
+
+private fun buildApiError(action: String, response: Response<*>): String {
+    val serverError = response.errorBody()?.string().orEmpty()
+    return "$action thất bại (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else ""
 }
 
 

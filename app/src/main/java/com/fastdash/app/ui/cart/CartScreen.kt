@@ -154,7 +154,7 @@ private fun CartItemCard(
                 )
                 if (item.toppings.isNotEmpty()) {
                     Text(
-                        item.toppings.joinToString(", ") { it.name },
+                        item.toppings.joinToString(", ") { it.name.orEmpty() }.ifBlank { "Topping" },
                         fontSize = 12.sp,
                         color = Color.Gray,
                         maxLines = 1,

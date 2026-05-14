@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.Response
 
 data class AdminSizeUiState(
     val sizes: List<AdminSizeResponse> = emptyList(),
@@ -44,9 +45,14 @@ class AdminSizeViewModel(
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false, selectedProductId = productId) }
                 val response = repository.getSizesByProduct(productId)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Tải size", response))
+                }
+                val sizes = response.body()
+                    ?: throw IllegalStateException("Tải size thất bại: BE trả body rỗng")
                 _uiState.update {
                     it.copy(
-                        sizes = response.body().orEmpty(),
+                        sizes = sizes,
                         loading = false,
                         message = null,
                         isError = false
@@ -144,7 +150,10 @@ class AdminSizeViewModel(
                     sizeName = state.sizeNameInput.trim(),
                     price = price
                 )
-                repository.createSize(state.selectedProductId, request)
+                val response = repository.createSize(state.selectedProductId, request)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Thêm size", response))
+                }
                 _uiState.update {
                     it.copy(
                         formLoading = false,
@@ -190,7 +199,10 @@ class AdminSizeViewModel(
                     sizeName = state.sizeNameInput.trim(),
                     price = price
                 )
-                repository.updateSize(sizeId, request)
+                val response = repository.updateSize(sizeId, request)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Cập nhật size", response))
+                }
                 _uiState.update {
                     it.copy(
                         formLoading = false,
@@ -220,7 +232,10 @@ class AdminSizeViewModel(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                repository.deleteSize(sizeId)
+                val response = repository.deleteSize(sizeId)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Xóa size", response))
+                }
                 _uiState.update {
                     it.copy(
                         loading = false,
@@ -247,7 +262,10 @@ class AdminSizeViewModel(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                repository.updateSizeStatus(sizeId, newStatus)
+                val response = repository.updateSizeStatus(sizeId, newStatus)
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Cập nhật trạng thái size", response))
+                }
                 _uiState.update {
                     it.copy(
                         loading = false,
@@ -266,5 +284,10 @@ class AdminSizeViewModel(
                 }
             }
         }
+    }
+
+    private fun buildApiError(action: String, response: Response<*>): String {
+        val serverError = response.errorBody()?.string().orEmpty()
+        return "$action thất bại (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else ""
     }
 }

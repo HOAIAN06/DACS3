@@ -38,6 +38,9 @@ import coil.compose.AsyncImage
 import com.fastdash.app.R
 import com.fastdash.app.data.model.response.CategoryResponse
 import com.fastdash.app.data.model.response.ProductResponse
+import com.fastdash.app.ui.menu.MenuScreen
+import com.fastdash.app.ui.order.OrderHistoryScreen
+import com.fastdash.app.ui.profile.ProfileScreen
 import com.fastdash.app.utils.CurrencyUtils
 import com.fastdash.app.utils.ImageUtils
 import com.fastdash.app.viewmodel.HomeViewModel
@@ -72,26 +75,20 @@ fun HomeScreen(
 
     val categories by viewModel.categories.observeAsState(emptyList())
     val products by viewModel.products.observeAsState(emptyList())
+    val loading by viewModel.loading.observeAsState(false)
     val errorMessage by viewModel.errorMessage.observeAsState()
 
     var selectedTab by remember { mutableStateOf(BottomTab.Home) }
 
-    LaunchedEffect(Unit) { viewModel.loadHomeData() }
-
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let {
-            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
-            viewModel.clearError()
-        }
-    }
-
     Scaffold(
         topBar = {
-            HomeTopBar(cartCount = cartCount, onCartClick = onCheckout)
+            if (selectedTab == BottomTab.Home) {
+                HomeTopBar(cartCount = cartCount, onCartClick = onCheckout)
+            }
         },
         bottomBar = {
             Column {
-                if (cartCount > 0) {
+                if (cartCount > 0 && (selectedTab == BottomTab.Home || selectedTab == BottomTab.Menu)) {
                     MiniCartIndicator(
                         count = cartCount,
                         total = cartTotal,
@@ -100,102 +97,117 @@ fun HomeScreen(
                 }
                 PizzaHutBottomNavigation(
                     selectedTab = selectedTab,
-                    onSelectTab = { tab ->
-                        selectedTab = tab
-                        when (tab) {
-                            BottomTab.Orders -> onOpenOrders()
-                            BottomTab.Account -> onOpenProfile()
-                            else -> Unit
-                        }
-                    }
+                    onSelectTab = { selectedTab = it }
                 )
             }
         },
         containerColor = LightGrey
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 16.dp)
-        ) {
-            // 1. Promotion Banner Pager
-            item {
-                PromotionPager()
+        Box(modifier = Modifier.padding(innerPadding)) {
+            if (loading && selectedTab == BottomTab.Home) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                    color = PizzaHutRed
+                )
             }
-
-            // 2. Welcome & Address Section
-            item {
-                WelcomeAddressSection()
-            }
-
-            // 3. Recommended Section "Bạn sẽ thích"
-            item {
-                SectionHeaderRow(title = "Bạn sẽ thích")
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(products.take(5)) { product ->
-                        RecommendedProductCard(
-                            product = product,
-                            onClick = { onOpenProduct(product) },
-                            onAddToCart = { onAddToCart(product) }
-                        )
+            when (selectedTab) {
+                BottomTab.Home -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        item { PromotionPager() }
+                        item { WelcomeAddressSection() }
+                        item {
+                            SectionHeaderRow(title = "Bạn sẽ thích")
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(products.take(5)) { product ->
+                                    RecommendedProductCard(
+                                        product = product,
+                                        onClick = { onOpenProduct(product) },
+                                        onAddToCart = { onAddToCart(product) }
+                                    )
+                                }
+                            }
+                        }
+                        item {
+                            SectionHeaderRow(title = "Menu", actionText = "Xem thêm", onActionClick = { selectedTab = BottomTab.Menu })
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                items(categories) { category ->
+                                    MenuCategoryCard(category = category, onClick = { 
+                                        selectedTab = BottomTab.Menu
+                                        viewModel.loadProducts(category.id)
+                                    })
+                                }
+                            }
+                        }
+                        item {
+                            Spacer(Modifier.height(16.dp))
+                            ActionMenuItem(
+                                icon = Icons.Outlined.ShoppingBag,
+                                title = "Theo dõi đơn hàng",
+                                subtitle = "Dễ dàng theo dõi trạng thái đơn hàng của bạn",
+                                onClick = { selectedTab = BottomTab.Orders }
+                            )
+                            ActionMenuItem(
+                                icon = Icons.Outlined.LocationOn,
+                                title = "Cửa hàng của chúng tôi",
+                                onClick = { /* TODO */ }
+                            )
+                        }
+                        item {
+                            Spacer(Modifier.height(24.dp))
+                            Text(
+                                "Kết nối với Pizza Hut",
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            ActionMenuItem(
+                                icon = Icons.Outlined.Phone,
+                                title = "Cần trợ giúp?",
+                                subtitle = "Gọi 1900 1822",
+                                onClick = { /* TODO */ }
+                            )
+                            ActionMenuItem(
+                                icon = Icons.Outlined.Description,
+                                title = "Điều khoản và Điều kiện",
+                                onClick = { /* TODO */ }
+                            )
+                        }
                     }
                 }
-            }
-
-            // 4. Menu Section
-            item {
-                SectionHeaderRow(title = "Menu", actionText = "Xem thêm", onActionClick = { /* TODO */ })
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(categories) { category ->
-                        MenuCategoryCard(category = category, onClick = { viewModel.loadProducts(category.id) })
-                    }
+                BottomTab.Menu -> {
+                    MenuScreen(
+                        onOpenProduct = onOpenProduct,
+                        onAddToCart = onAddToCart
+                    )
                 }
-            }
-
-            // 5. Action Menu Items
-            item {
-                Spacer(Modifier.height(16.dp))
-                ActionMenuItem(
-                    icon = Icons.Outlined.ShoppingBag,
-                    title = "Theo dõi đơn hàng",
-                    subtitle = "Dễ dàng theo dõi trạng thái đơn hàng của bạn",
-                    onClick = onOpenOrders
-                )
-                ActionMenuItem(
-                    icon = Icons.Outlined.LocationOn,
-                    title = "Cửa hàng của chúng tôi",
-                    onClick = { /* TODO */ }
-                )
-            }
-
-            // 6. Connect Section
-            item {
-                Spacer(Modifier.height(24.dp))
-                Text(
-                    "Kết nối với Pizza Hut",
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(Modifier.height(12.dp))
-                ActionMenuItem(
-                    icon = Icons.Outlined.Phone,
-                    title = "Cần trợ giúp?",
-                    subtitle = "Gọi 1900 1822",
-                    onClick = { /* TODO */ }
-                )
-                ActionMenuItem(
-                    icon = Icons.Outlined.Description,
-                    title = "Điều khoản và Điều kiện",
-                    onClick = { /* TODO */ }
-                )
+                BottomTab.Orders -> {
+                    OrderHistoryScreen(
+                        orders = emptyList(),
+                        onBack = { selectedTab = BottomTab.Home },
+                        onOpenOrder = { /* TODO */ }
+                    )
+                }
+                BottomTab.Account -> {
+                    ProfileScreen(
+                        fullName = "Khách hàng FastDash",
+                        email = "customer@fastdash.com",
+                        phone = "0123456789",
+                        role = "CUSTOMER",
+                        onBack = { selectedTab = BottomTab.Home },
+                        onOpenOrders = { selectedTab = BottomTab.Orders },
+                        onLogout = onOpenProfile
+                    )
+                }
             }
         }
     }
@@ -345,7 +357,7 @@ private fun RecommendedProductCard(
     ) {
         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             AsyncImage(
-                model = ImageUtils.formatImageUrl(product.imageUrl),
+                model = ImageUtils.buildImageRequest(LocalContext.current, product.imageUrl),
                 contentDescription = null,
                 modifier = Modifier.size(100.dp).clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop

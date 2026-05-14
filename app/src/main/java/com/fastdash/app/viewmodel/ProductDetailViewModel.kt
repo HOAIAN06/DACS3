@@ -24,11 +24,24 @@ class ProductDetailViewModel(private val repository: ProductRepository) : ViewMo
         viewModelScope.launch {
             _loading.value = true
             try {
+                _sizes.value = emptyList()
+                _toppings.value = emptyList()
+
                 val sizesResp = repository.getProductSizes(productId)
                 val toppingsResp = repository.getProductToppings(productId)
                 
-                if (sizesResp.isSuccessful) _sizes.value = sizesResp.body().orEmpty()
-                if (toppingsResp.isSuccessful) _toppings.value = toppingsResp.body().orEmpty()
+                if (sizesResp.isSuccessful) {
+                    _sizes.value = sizesResp.body()
+                        .orEmpty()
+                        .filter { it.id > 0L }
+                        .distinctBy { it.id }
+                }
+                if (toppingsResp.isSuccessful) {
+                    _toppings.value = toppingsResp.body()
+                        .orEmpty()
+                        .filter { it.id > 0L }
+                        .distinctBy { it.id }
+                }
             } catch (e: Exception) {
                 // Handle error
             } finally {

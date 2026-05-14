@@ -17,10 +17,13 @@ import com.fastdash.app.data.remote.api.AdminPaymentApi
 import com.fastdash.app.data.remote.api.AdminOrderStatusApi
 import com.fastdash.app.data.remote.api.AdminCategoryApi
 import com.fastdash.app.data.remote.api.AdminProductApiExtended
+import com.fastdash.app.data.remote.api.AdminOrderApi
 import com.fastdash.app.utils.Constants
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import com.google.gson.FieldNamingPolicy
+import com.google.gson.GsonBuilder
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
@@ -38,10 +41,14 @@ object RetrofitClient {
 			.addInterceptor(logging)
 			.build()
 
+		val gson = GsonBuilder()
+			.setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_UNDERSCORES)
+			.create()
+
 		return Retrofit.Builder()
 			.baseUrl(Constants.BASE_URL)
 			.client(okHttpClient)
-			.addConverterFactory(GsonConverterFactory.create())
+			.addConverterFactory(GsonConverterFactory.create(gson))
 			.build()
 	}
 
@@ -110,6 +117,10 @@ object RetrofitClient {
 
 	fun adminProductApiExtended(context: Context): AdminProductApiExtended {
 		return getRetrofit(context).create(AdminProductApiExtended::class.java)
+	}
+
+	fun adminOrderApi(context: Context): AdminOrderApi {
+		return getRetrofit(context).create(AdminOrderApi::class.java)
 	}
 
 }
