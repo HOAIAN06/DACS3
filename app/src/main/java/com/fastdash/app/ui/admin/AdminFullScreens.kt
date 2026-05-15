@@ -125,8 +125,8 @@ fun AdminUsersScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 AdminMetricCard(
                     modifier = Modifier.weight(1f),
-                    title = "Customer",
-                    value = users.count { it.role == "CUSTOMER" }.toString(),
+                    title = "User",
+                    value = users.count { it.role == "USER" }.toString(),
                     accentColor = AdminSuccess
                 )
                 AdminMetricCard(

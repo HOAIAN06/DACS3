@@ -39,19 +39,19 @@ fun ProductDetailScreen(
     sizes: List<ProductSizeResponse> = emptyList(),
     toppings: List<ToppingResponse> = emptyList(),
     onBack: () -> Unit,
-    onAddToCart: (productId: Long, quantity: Int, sizeName: String?, toppingIds: List<Long>) -> Unit
+    onAddToCart: (productId: Long, quantity: Int, productSizeId: Long?, toppingIds: List<Long>) -> Unit
 ) {
-    var selectedSize by remember { mutableStateOf<String?>(null) }
+    var selectedSizeId by remember { mutableStateOf<Long?>(null) }
     var quantity by remember { mutableIntStateOf(1) }
     val selectedToppings = remember { mutableStateListOf<Long>() }
 
     LaunchedEffect(sizes) {
-        if (selectedSize.isNullOrBlank()) {
-            selectedSize = sizes.firstOrNull { !it.sizeName.isNullOrBlank() }?.sizeName
+        if (selectedSizeId == null) {
+            selectedSizeId = sizes.firstOrNull { !it.sizeName.isNullOrBlank() }?.id
         }
     }
 
-    val sizePrice = sizes.firstOrNull { it.sizeName == selectedSize }?.price ?: product.basePrice
+    val sizePrice = sizes.firstOrNull { it.id == selectedSizeId }?.price ?: product.basePrice
     val toppingsPrice = toppings.filter { selectedToppings.contains(it.id) }.sumOf { it.price }
     val unitPrice = sizePrice + toppingsPrice
     val totalPrice = unitPrice * quantity
@@ -118,8 +118,8 @@ fun ProductDetailScreen(
                                 SizeSelectionItem(
                                     size = size,
                                     displayName = safeSizeName,
-                                    isSelected = selectedSize == size.sizeName,
-                                    onClick = { selectedSize = size.sizeName }
+                                    isSelected = selectedSizeId == size.id,
+                                    onClick = { selectedSizeId = size.id }
                                 )
                             }
                         }
@@ -196,7 +196,7 @@ fun ProductDetailScreen(
 
                 // Add to Cart Button
                 Button(
-                    onClick = { onAddToCart(product.id, quantity, selectedSize, selectedToppings.toList()) },
+                    onClick = { onAddToCart(product.id, quantity, selectedSizeId, selectedToppings.toList()) },
                     modifier = Modifier.weight(1f).height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
                     shape = RoundedCornerShape(12.dp)

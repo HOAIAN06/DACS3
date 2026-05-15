@@ -1,5 +1,6 @@
 package com.fastdash.app.data.remote.api
 
+import com.fastdash.app.data.model.request.UpdateProfileRequest
 import com.fastdash.app.data.model.response.UserResponse
 import retrofit2.Response
 import retrofit2.http.Body
@@ -11,5 +12,5 @@ interface UserApi {
     suspend fun getMe(): Response<UserResponse>
 
     @PUT("api/v1/users/me")
-    suspend fun updateMe(@Body request: UserResponse): Response<UserResponse>
+    suspend fun updateMe(@Body request: UpdateProfileRequest): Response<UserResponse>
 }

@@ -1,4 +1,4 @@
-package com.fastdash.app.ui.admin
+﻿package com.fastdash.app.ui.admin
 
 import android.content.Context
 import android.net.Uri
@@ -369,7 +369,7 @@ private fun AddProductWizard(
                             scope.launch {
                                         val isEditing = uiState.editingProductId != null
                                         val success = if (isEditing) {
-                                            viewModel.updateProduct()
+                                            viewModel.updateProductFixed()
                                         } else {
                                             viewModel.createProduct()
                                         }
@@ -467,14 +467,10 @@ private fun StepBasicInfo(uiState: AdminProductUiState, viewModel: AdminProductV
             minLines = 3
         )
 
-        OutlinedTextField(
-            value = uiState.basePriceInput,
-            onValueChange = viewModel::onBasePriceChanged,
-            label = { Text("Giá cơ bản (VNĐ)") },
-            modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            shape = RoundedCornerShape(12.dp),
-            prefix = { Text("₫ ", fontWeight = FontWeight.Bold) }
+        Text(
+            text = "Giá bán và cấu hình size sẽ được thiết lập ở bước 3.",
+            fontSize = 12.sp,
+            color = AdminMuted
         )
     }
 }
@@ -535,20 +531,46 @@ private fun StepConfiguration(uiState: AdminProductUiState, viewModel: AdminProd
     Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         // Sizes
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
+            Surface(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                shape = RoundedCornerShape(14.dp),
+                color = Color.White,
+                tonalElevation = 1.dp
             ) {
-                Text("KÍCH THƯỚC (SIZE)", fontWeight = FontWeight.Black, color = PrimaryBlack)
-                Switch(
-                    checked = uiState.hasSizes,
-                    onCheckedChange = { viewModel.setHasSizes(it) },
-                    colors = SwitchDefaults.colors(checkedThumbColor = PizzaHutRed, checkedTrackColor = PizzaHutRed.copy(alpha = 0.3f))
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("MÓN CÓ NHIỀU SIZE", fontWeight = FontWeight.Bold, color = PrimaryBlack, fontSize = 13.sp)
+                        Text(
+                            if (uiState.hasSizes) "Đang dùng giá theo từng size" else "Đang dùng giá mặc định từ bước 1",
+                            fontSize = 12.sp,
+                            color = AdminMuted
+                        )
+                    }
+                    Switch(
+                        checked = uiState.hasSizes,
+                        onCheckedChange = { viewModel.setHasSizes(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = PizzaHutRed,
+                            checkedTrackColor = PizzaHutRed.copy(alpha = 0.3f)
+                        )
+                    )
+                }
             }
 
+            Text("KÍCH THƯỚC (SIZE)", fontWeight = FontWeight.Black, color = PrimaryBlack)
+
             if (uiState.hasSizes) {
+                Text(
+                    "Nhập từng size và giá bán tương ứng. Giá nhỏ nhất sẽ dùng làm giá cơ sở.",
+                    fontSize = 12.sp,
+                    color = AdminMuted
+                )
                 uiState.sizes.forEachIndexed { index, sizeInput ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -565,11 +587,11 @@ private fun StepConfiguration(uiState: AdminProductUiState, viewModel: AdminProd
                         OutlinedTextField(
                             value = sizeInput.price,
                             onValueChange = { viewModel.onSizeChanged(index, sizeInput.name, it) },
-                            placeholder = { Text("Giá thêm") },
+                            placeholder = { Text("Giá bán") },
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             shape = RoundedCornerShape(8.dp),
-                            prefix = { Text("+") }
+                            prefix = { Text("₫") }
                         )
                         IconButton(onClick = { viewModel.removeSizeInput(index) }) {
                             Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
@@ -580,7 +602,16 @@ private fun StepConfiguration(uiState: AdminProductUiState, viewModel: AdminProd
                     Text("+ Thêm lựa chọn size khác", color = PizzaHutRed, fontWeight = FontWeight.Bold)
                 }
             } else {
-                Text("Món ăn này chỉ có một kích thước mặc định.", fontSize = 12.sp, color = AdminMuted)
+                OutlinedTextField(
+                    value = uiState.manualBasePriceInput,
+                    onValueChange = viewModel::onBasePriceChanged,
+                    label = { Text("Giá bán (VNĐ)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    shape = RoundedCornerShape(12.dp),
+                    prefix = { Text("₫ ", fontWeight = FontWeight.Bold) }
+                )
+                Text("Món này không dùng size. Giá bán sẽ lấy từ ô trên.", fontSize = 12.sp, color = AdminMuted)
             }
         }
 

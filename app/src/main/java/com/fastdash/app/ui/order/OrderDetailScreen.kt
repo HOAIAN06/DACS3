@@ -21,117 +21,114 @@ import androidx.compose.ui.unit.dp
 import com.fastdash.app.utils.CurrencyUtils
 
 data class OrderItemUiModel(
-	val id: Long,
-	val name: String,
-	val quantity: Int,
-	val unitPrice: Double
+    val id: Long,
+    val name: String,
+    val quantity: Int,
+    val unitPrice: Double
 )
 
 data class OrderDetailUiModel(
-	val id: Long,
-	val code: String,
-	val status: String,
-	val createdAt: String,
-	val deliveryAddress: String,
-	val shippingFee: Double,
-	val items: List<OrderItemUiModel>
+    val id: Long,
+    val orderCode: String,
+    val status: String,
+    val createdAt: String,
+    val deliveryAddress: String,
+    val shippingFee: Double,
+    val items: List<OrderItemUiModel>
 )
 
 @Composable
 fun OrderDetailScreen(
-	order: OrderDetailUiModel,
-	onBack: () -> Unit,
-	onReorder: (OrderDetailUiModel) -> Unit
+    order: OrderDetailUiModel,
+    onBack: () -> Unit,
+    onReorder: (OrderDetailUiModel) -> Unit
 ) {
-	val subtotal = order.items.sumOf { it.unitPrice * it.quantity }
-	val total = subtotal + order.shippingFee
+    val subtotal = order.items.sumOf { it.unitPrice * it.quantity }
+    val total = subtotal + order.shippingFee
 
-	Column(
-		modifier = Modifier
-			.fillMaxSize()
-			.padding(16.dp)
-	) {
-		TextButton(onClick = onBack) {
-			Text("<- Quay lai")
-		}
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        TextButton(onClick = onBack) {
+            Text("<- Quay lai")
+        }
 
-		Text(
-			text = "Chi tiet don ${order.code}",
-			style = MaterialTheme.typography.headlineSmall,
-			fontWeight = FontWeight.Bold
-		)
+        Text(
+            text = "Chi tiet don ${order.orderCode}",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
 
-		Surface(
-			tonalElevation = 1.dp,
-			shape = MaterialTheme.shapes.medium,
-			modifier = Modifier
-				.fillMaxWidth()
-				.padding(top = 12.dp)
-		) {
-			Column(
-				modifier = Modifier.padding(12.dp),
-				verticalArrangement = Arrangement.spacedBy(6.dp)
-			) {
-				Text("Trang thai: ${order.status}")
-				Text("Ngay dat: ${order.createdAt}")
-				Text("Dia chi giao: ${order.deliveryAddress}")
-			}
-		}
+        Surface(
+            tonalElevation = 1.dp,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text("Trang thai: ${order.status}")
+                Text("Ngay dat: ${order.createdAt}")
+                Text("Dia chi giao: ${order.deliveryAddress}")
+            }
+        }
 
-		LazyColumn(
-			modifier = Modifier
-				.weight(1f)
-				.padding(top = 12.dp),
-			verticalArrangement = Arrangement.spacedBy(8.dp)
-		) {
-			items(order.items, key = { it.id }) { item ->
-				Surface(
-					tonalElevation = 1.dp,
-					shape = MaterialTheme.shapes.small,
-					modifier = Modifier.fillMaxWidth()
-				) {
-					Row(
-						modifier = Modifier
-							.fillMaxWidth()
-							.padding(12.dp),
-						horizontalArrangement = Arrangement.SpaceBetween,
-						verticalAlignment = Alignment.CenterVertically
-					) {
-						Column {
-							Text(item.name, fontWeight = FontWeight.Medium)
-							Text("SL: ${item.quantity}")
-						}
-						Text(CurrencyUtils.formatVnd(item.quantity * item.unitPrice))
-					}
-				}
-			}
-		}
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(order.items, key = { it.id }) { item ->
+                Surface(
+                    tonalElevation = 1.dp,
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(item.name, fontWeight = FontWeight.Medium)
+                            Text("SL: ${item.quantity}")
+                        }
+                        Text(CurrencyUtils.formatVnd(item.quantity * item.unitPrice))
+                    }
+                }
+            }
+        }
 
-		Surface(
-			shape = MaterialTheme.shapes.medium,
-			tonalElevation = 2.dp,
-			modifier = Modifier.fillMaxWidth()
-		) {
-			Column(
-				modifier = Modifier.padding(12.dp),
-				verticalArrangement = Arrangement.spacedBy(4.dp)
-			) {
-				Text("Tam tinh: ${CurrencyUtils.formatVnd(subtotal)}")
-				Text("Phi giao hang: ${CurrencyUtils.formatVnd(order.shippingFee)}")
-				Text(
-					text = "Tong cong: ${CurrencyUtils.formatVnd(total)}",
-					fontWeight = FontWeight.Bold
-				)
-			}
-		}
+        Surface(
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text("Tam tinh: ${CurrencyUtils.formatVnd(subtotal)}")
+                Text("Phi giao hang: ${CurrencyUtils.formatVnd(order.shippingFee)}")
+                Text(text = "Tong cong: ${CurrencyUtils.formatVnd(total)}", fontWeight = FontWeight.Bold)
+            }
+        }
 
-		Button(
-			onClick = { onReorder(order) },
-			modifier = Modifier
-				.fillMaxWidth()
-				.padding(top = 12.dp)
-		) {
-			Text("Dat lai don nay")
-		}
-	}
+        Button(
+            onClick = { onReorder(order) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+        ) {
+            Text("Dat lai don nay")
+        }
+    }
 }

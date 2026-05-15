@@ -1,6 +1,9 @@
 package com.fastdash.app.data.repository
 
 import android.content.Context
+import com.fastdash.app.data.model.response.AdminDashboardSummaryResponse
+import com.fastdash.app.data.model.response.AdminOrderSummaryResponse
+import com.fastdash.app.data.model.response.AdminPageResponse
 import com.fastdash.app.data.remote.api.AdminUserApi
 import com.fastdash.app.data.remote.api.AdminBranchApi
 import com.fastdash.app.data.remote.api.AdminToppingApi
@@ -34,8 +37,8 @@ class AdminBranchRepository(context: Context) {
         api.updateBranch(id, request)
 
     suspend fun deleteBranch(id: Long) = api.deleteBranch(id)
-    suspend fun updateBranchStatus(id: Long, status: Int) =
-        api.updateBranchStatus(id, com.fastdash.app.data.remote.api.UpdateStatusRequest(status))
+     suspend fun updateBranchStatus(id: Long, status: Int) =
+         api.updateBranchStatus(id, status)
 }
 
 class AdminToppingRepository(context: Context) {
@@ -49,8 +52,8 @@ class AdminToppingRepository(context: Context) {
         api.updateTopping(id, request)
 
     suspend fun deleteTopping(id: Long) = api.deleteTopping(id)
-    suspend fun updateToppingStatus(id: Long, status: Int) =
-        api.updateToppingStatus(id, com.fastdash.app.data.remote.api.UpdateStatusRequest(status))
+     suspend fun updateToppingStatus(id: Long, status: Int) =
+         api.updateToppingStatus(id, status)
 }
 
 class AdminSizeRepository(context: Context) {
@@ -64,8 +67,8 @@ class AdminSizeRepository(context: Context) {
         api.updateSize(sizeId, request)
 
     suspend fun deleteSize(sizeId: Long) = api.deleteSize(sizeId)
-    suspend fun updateSizeStatus(sizeId: Long, status: Int) =
-        api.updateSizeStatus(sizeId, com.fastdash.app.data.remote.api.UpdateStatusRequest(status))
+     suspend fun updateSizeStatus(sizeId: Long, status: Int) =
+         api.updateSizeStatus(sizeId, status)
 }
 
 class AdminPaymentRepository(context: Context) {
@@ -73,8 +76,7 @@ class AdminPaymentRepository(context: Context) {
 
     suspend fun getPayments() = api.getPayments()
     suspend fun getPaymentDetail(id: Long) = api.getPaymentDetail(id)
-    suspend fun updatePaymentStatus(id: Long, status: String) =
-        api.updatePaymentStatus(id, com.fastdash.app.data.remote.api.UpdatePaymentStatusRequest(status))
+    suspend fun updatePaymentStatus(id: Long, status: String) = api.updatePaymentStatus(id, status)
 }
 
 class AdminOrderStatusRepository(context: Context) {
@@ -82,6 +84,34 @@ class AdminOrderStatusRepository(context: Context) {
 
      suspend fun updateOrderStatus(id: Long, status: String) =
          api.updateOrderStatus(id, com.fastdash.app.data.remote.api.UpdateOrderStatusRequest(status))
+}
+
+class AdminOrderRepository(context: Context) {
+    private val api = RetrofitClient.adminOrderApi(context.applicationContext)
+
+    suspend fun getOrders(
+        page: Int? = 0,
+        size: Int? = 20,
+        status: String? = null,
+        keyword: String? = null,
+        fromDate: String? = null,
+        toDate: String? = null
+    ) = api.getOrders(page = page, size = size, status = status, keyword = keyword, fromDate = fromDate, toDate = toDate)
+
+    suspend fun getOrderDetail(id: Long) = api.getOrderDetail(id)
+}
+
+class AdminDashboardRepository(context: Context) {
+    private val api = RetrofitClient.adminDashboardApi(context.applicationContext)
+
+    suspend fun getSummary() = api.getSummary()
+}
+
+class BranchRepository(context: Context) {
+    private val api = RetrofitClient.branchApi(context.applicationContext)
+
+    suspend fun getBranches() = api.getBranches()
+    suspend fun getBranchDetail(id: Long) = api.getBranchDetail(id)
 }
 
 class AdminCategoryRepository(context: Context) {
@@ -95,8 +125,8 @@ class AdminCategoryRepository(context: Context) {
          api.updateCategory(id, request)
 
      suspend fun deleteCategory(id: Long) = api.deleteCategory(id)
-     suspend fun updateCategoryStatus(id: Long, status: Int) =
-         api.updateCategoryStatus(id, com.fastdash.app.data.remote.api.UpdateStatusRequest(status))
+      suspend fun updateCategoryStatus(id: Long, status: Int) =
+          api.updateCategoryStatus(id, status)
 }
 
 class AdminProductRepositoryExtended(context: Context) {
@@ -108,8 +138,8 @@ class AdminProductRepositoryExtended(context: Context) {
          api.updateProduct(id, request)
 
      suspend fun deleteProduct(id: Long) = api.deleteProduct(id)
-     suspend fun updateProductStatus(id: Long, status: Int) =
-         api.updateProductStatus(id, com.fastdash.app.data.remote.api.UpdateStatusRequest(status))
+      suspend fun updateProductStatus(id: Long, status: Int) =
+          api.updateProductStatus(id, status)
 
      suspend fun addToppingToProduct(productId: Long, toppingId: Long) =
          api.addToppingToProduct(productId, toppingId)

@@ -29,8 +29,8 @@ class AdminProductRepository(context: Context) {
 
     suspend fun deleteProduct(id: Long) = apiExtended.deleteProduct(id)
 
-    suspend fun updateProductStatus(id: Long, status: Int) =
-        apiExtended.updateProductStatus(id, com.fastdash.app.data.remote.api.UpdateStatusRequest(status))
+     suspend fun updateProductStatus(id: Long, status: Int) =
+         apiExtended.updateProductStatus(id, status)
 
     suspend fun addToppingToProduct(productId: Long, toppingId: Long) =
         apiExtended.addToppingToProduct(productId, toppingId)

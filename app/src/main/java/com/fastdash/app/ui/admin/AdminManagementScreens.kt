@@ -155,7 +155,7 @@ fun AdminCategoriesScreen(
     val visibleCategories = remember(uiState.categories, uiState.searchQuery) {
         val q = uiState.searchQuery.trim()
         if (q.isBlank()) uiState.categories else uiState.categories.filter {
-            it.name.contains(q, ignoreCase = true) || (it.description?.contains(q, ignoreCase = true) == true)
+            it.name?.contains(q, ignoreCase = true) == true || (it.description?.contains(q, ignoreCase = true) == true)
         }
     }
 
@@ -276,7 +276,7 @@ fun AdminCategoriesScreen(
                                         fontSize = 15.sp
                                     )
                                     Text(
-                                        text = category.description ?: "Chưa có mô tả",
+                                        text = category.description.orEmpty().ifBlank { "Chưa có mô tả" },
                                         color = AdminMuted,
                                         fontSize = 12.sp,
                                         maxLines = 2,
@@ -451,7 +451,7 @@ fun AdminOrdersScreen(
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
-    val repository = remember { OrderRepository(context.applicationContext) }
+    val repository = remember { com.fastdash.app.data.repository.AdminOrderRepository(context.applicationContext) }
     val statusRepository = remember { com.fastdash.app.data.repository.AdminOrderStatusRepository(context.applicationContext) }
     val scope = rememberCoroutineScope()
 
@@ -466,7 +466,18 @@ fun AdminOrdersScreen(
     suspend fun loadOrders() {
         val response = repository.getOrders()
         if (response.isSuccessful) {
-            orders = response.body().orEmpty()
+            val page = response.body()
+            orders = page?.content.orEmpty().map { summary ->
+                OrderResponse(
+                    id = summary.id,
+                    orderCode = summary.orderCode,
+                    status = summary.status,
+                    createdAt = summary.createdAt,
+                    deliveryType = summary.deliveryType,
+                    deliveryAddress = null,
+                    totalAmount = summary.totalAmount
+                )
+            }
             errorMessage = null
         } else {
             val serverError = response.errorBody()?.string().orEmpty()
@@ -1231,7 +1242,7 @@ fun AdminToppingsScreen(
     val visibleToppings = remember(uiState.toppings, uiState.searchQuery) {
         val q = uiState.searchQuery.trim()
         if (q.isBlank()) uiState.toppings else uiState.toppings.filter {
-            it.name.contains(q, ignoreCase = true)
+            it.name?.contains(q, ignoreCase = true) == true
         }
     }
 

@@ -2,6 +2,7 @@ package com.fastdash.app.data.remote.retrofit
 
 import android.content.Context
 import com.fastdash.app.data.remote.api.AuthApi
+import com.fastdash.app.data.remote.api.BranchApi
 import com.fastdash.app.data.remote.api.CartApi
 import com.fastdash.app.data.remote.api.CategoryApi
 import com.fastdash.app.data.remote.api.OrderApi
@@ -18,6 +19,7 @@ import com.fastdash.app.data.remote.api.AdminOrderStatusApi
 import com.fastdash.app.data.remote.api.AdminCategoryApi
 import com.fastdash.app.data.remote.api.AdminProductApiExtended
 import com.fastdash.app.data.remote.api.AdminOrderApi
+import com.fastdash.app.data.remote.api.AdminDashboardApi
 import com.fastdash.app.utils.Constants
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -72,6 +74,10 @@ object RetrofitClient {
 		return getRetrofit(context).create(CategoryApi::class.java)
 	}
 
+	fun branchApi(context: Context): BranchApi {
+		return getRetrofit(context).create(BranchApi::class.java)
+	}
+
 	fun productApi(context: Context): ProductApi {
 		return getRetrofit(context).create(ProductApi::class.java)
 	}
@@ -121,6 +127,10 @@ object RetrofitClient {
 
 	fun adminOrderApi(context: Context): AdminOrderApi {
 		return getRetrofit(context).create(AdminOrderApi::class.java)
+	}
+
+	fun adminDashboardApi(context: Context): AdminDashboardApi {
+		return getRetrofit(context).create(AdminDashboardApi::class.java)
 	}
 
 }

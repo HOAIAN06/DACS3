@@ -1,7 +1,23 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use { input -> load(input) }
+    }
+}
+
+val defaultBaseUrl = "http://10.0.2.2:8080/"
+val configuredBaseUrl = (localProperties.getProperty("fastdash.baseUrl")
+    ?: providers.gradleProperty("fastdash.baseUrl").orNull
+    ?: defaultBaseUrl)
+    .trim()
+    .let { if (it.endsWith("/")) it else "$it/" }
 
 android {
     namespace = "com.fastdash.app"
@@ -17,6 +33,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "BASE_URL", "\"$configuredBaseUrl\"")
     }
 
     buildTypes {
@@ -34,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

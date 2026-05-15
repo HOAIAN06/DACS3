@@ -4,20 +4,22 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fastdash.app.data.model.request.AdminProductRequest
 import com.fastdash.app.data.remote.api.AdminCategoryResponse
-import com.fastdash.app.data.remote.api.AdminToppingResponse
 import com.fastdash.app.data.remote.api.AdminProductResponse
-import com.fastdash.app.data.remote.api.UpdateProductRequest
+import com.fastdash.app.data.remote.api.AdminToppingResponse
 import com.fastdash.app.data.remote.api.CreateSizeRequest
+import com.fastdash.app.data.remote.api.UpdateProductRequest
 import com.fastdash.app.data.repository.AdminCategoryRepository
 import com.fastdash.app.data.repository.AdminProductRepository
 import com.fastdash.app.data.repository.AdminSizeRepository
 import com.fastdash.app.data.repository.AdminToppingRepository
+import com.fastdash.app.data.repository.ProductRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import okhttp3.MultipartBody
+import retrofit2.Response
 
 data class ProductSizeInput(
     val name: String = "",
@@ -29,6 +31,7 @@ data class AdminProductUiState(
     val name: String = "",
     val description: String = "",
     val basePriceInput: String = "",
+    val manualBasePriceInput: String = "",
     val imageUrl: String = "",
     val hasSizes: Boolean = false,
     val sizes: List<ProductSizeInput> = emptyList(),
@@ -38,33 +41,33 @@ data class AdminProductUiState(
     val loading: Boolean = false,
     val message: String? = null,
     val isError: Boolean = false,
-    // New fields for multi-step form
     val showAddForm: Boolean = false,
     val editingProductId: Long? = null,
     val currentStep: Int = 1
 ) {
+    private val manualBasePriceValue = manualBasePriceInput.toDoubleOrNull()
+
     val canSubmit: Boolean
         get() = !loading &&
-                (imageUrl.isNotBlank() || editingProductId != null) &&
-                name.isNotBlank() &&
-                description.isNotBlank() &&
-                basePriceInput.toDoubleOrNull() != null &&
-                basePriceInput.toDoubleOrNull()!! >= 0.0 &&
-                categoryIdInput.toLongOrNull() != null &&
-                (!hasSizes || (
-                    sizes.isNotEmpty() &&
-                        sizes.all { size ->
-                            size.name.isNotBlank() &&
-                                size.price.toDoubleOrNull() != null &&
-                                size.price.toDoubleOrNull()!! >= 0.0
-                        }
-                ))
+            (imageUrl.isNotBlank() || editingProductId != null) &&
+            name.isNotBlank() &&
+            description.isNotBlank() &&
+            categoryIdInput.toLongOrNull() != null &&
+            if (hasSizes) {
+                sizes.isNotEmpty() && sizes.all { size ->
+                    size.name.isNotBlank() &&
+                        size.price.toDoubleOrNull() != null &&
+                        size.price.toDoubleOrNull()!! > 0.0
+                }
+            } else {
+                manualBasePriceValue != null && manualBasePriceValue > 0.0
+            }
 
     val canGoNext: Boolean
         get() = when (currentStep) {
-            1 -> imageUrl.isNotBlank() && name.isNotBlank() && description.isNotBlank() && basePriceInput.toDoubleOrNull() != null
+            1 -> imageUrl.isNotBlank() && name.isNotBlank() && description.isNotBlank()
             2 -> categoryIdInput.toLongOrNull() != null
-            3 -> true // Step 3 is final configuration, always can try to submit
+            3 -> true
             else -> false
         }
 }
@@ -73,7 +76,8 @@ class AdminProductViewModel(
     private val repository: AdminProductRepository,
     private val categoryRepository: AdminCategoryRepository,
     private val toppingRepository: AdminToppingRepository,
-    private val sizeRepository: AdminSizeRepository
+    private val sizeRepository: AdminSizeRepository,
+    private val productRepository: ProductRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AdminProductUiState())
@@ -83,41 +87,43 @@ class AdminProductViewModel(
         loadFormData()
     }
 
+    private fun List<ProductSizeInput>.deriveBasePriceInput(): String {
+        return mapNotNull { it.price.toDoubleOrNull() }
+            .filter { it > 0.0 }
+            .minOrNull()
+            ?.toString()
+            .orEmpty()
+    }
+
     fun loadFormData() {
         viewModelScope.launch {
             try {
-                val catResponse = categoryRepository.getCategories()
-                if (!catResponse.isSuccessful) {
-                    val serverError = catResponse.errorBody()?.string().orEmpty()
-                    throw IllegalStateException("Tải danh mục thất bại (${catResponse.code()})" + if (serverError.isNotBlank()) ": $serverError" else "")
+                val categoriesResponse = categoryRepository.getCategories()
+                if (!categoriesResponse.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Tai danh muc", categoriesResponse))
                 }
-                val cats = catResponse.body()
-                    ?: throw IllegalStateException("Tải danh mục thất bại: BE trả body rỗng")
 
-                val toppingResponse = toppingRepository.getToppings()
-                if (!toppingResponse.isSuccessful) {
-                    val serverError = toppingResponse.errorBody()?.string().orEmpty()
-                    throw IllegalStateException("Tải topping thất bại (${toppingResponse.code()})" + if (serverError.isNotBlank()) ": $serverError" else "")
+                val toppingsResponse = toppingRepository.getToppings()
+                if (!toppingsResponse.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Tai topping", toppingsResponse))
                 }
-                val toppings = toppingResponse.body()
-                    ?: throw IllegalStateException("Tải topping thất bại: BE trả body rỗng")
 
-                val safeCategories = cats.filter { it.id > 0L }.distinctBy { it.id }
-                val safeToppings = toppings.filter { it.id > 0L }.distinctBy { it.id }
-
-                _uiState.update { it.copy(categories = safeCategories, allToppingsList = safeToppings) }
+                _uiState.update {
+                    it.copy(
+                        categories = categoriesResponse.body().orEmpty().filter { category -> category.id > 0L }.distinctBy { category -> category.id },
+                        allToppingsList = toppingsResponse.body().orEmpty().filter { topping -> topping.id > 0L }.distinctBy { topping -> topping.id }
+                    )
+                }
             } catch (e: Exception) {
-                _uiState.update { it.copy(message = "Lỗi tải dữ liệu form: ${e.message}", isError = true) }
+                _uiState.update {
+                    it.copy(message = "Loi tai du lieu form: ${e.message}", isError = true)
+                }
             }
         }
     }
 
     fun setShowAddForm(show: Boolean) {
         if (show) {
-            // If we are opening the form, and we weren't already showing it as "Add" (not editing),
-            // we should probably reset to ensure it's clean for a new product.
-            // BUT wait, if we call showEditForm, it sets showAddForm = true.
-            // Let's make FAB specifically call a "startAdd" method.
             loadFormData()
         }
         _uiState.update { it.copy(showAddForm = show, message = null, isError = false) }
@@ -138,32 +144,67 @@ class AdminProductViewModel(
                 name = product.name.orEmpty(),
                 description = product.description.orEmpty(),
                 basePriceInput = product.basePrice.toString(),
+                manualBasePriceInput = product.basePrice.toString(),
                 imageUrl = product.imageUrl.orEmpty(),
+                hasSizes = false,
+                sizes = emptyList(),
+                selectedToppingIds = emptySet(),
                 currentStep = 1,
-                hasSizes = product.isCustomizable == 1,
                 message = null,
                 isError = false
             )
         }
+
         loadFormData()
-        
-        // Load sizes and toppings for the product being edited
+
         viewModelScope.launch {
             try {
-                val sizesResp = sizeRepository.getSizesByProduct(product.id)
-                if (sizesResp.isSuccessful) {
-                    val productSizes = sizesResp.body()?.map { ProductSizeInput(it.sizeName, it.price.toString()) }.orEmpty()
-                    _uiState.update { it.copy(sizes = productSizes, hasSizes = productSizes.isNotEmpty()) }
+                val detailResponse = productRepository.getProductById(product.id)
+                val detail = if (detailResponse.isSuccessful) detailResponse.body() else null
+
+                val sizesResponse = productRepository.getProductSizes(product.id)
+                val existingSizes = if (sizesResponse.isSuccessful) {
+                    sizesResponse.body().orEmpty()
+                } else {
+                    emptyList()
                 }
-                
-                // Fetch product detail or directly toppings to see which are selected
-                val detailResp = repository.getProductDetail(product.id)
-                if (detailResp.isSuccessful) {
-                    // Potentially map selected toppings if available in detail
-                    // For now, at least we loaded sizes
+
+                val toppingsResponse = productRepository.getProductToppings(product.id)
+                val existingToppingIds = if (toppingsResponse.isSuccessful) {
+                    toppingsResponse.body().orEmpty().map { topping -> topping.id }.toSet()
+                } else {
+                    emptySet()
                 }
-            } catch (e: Exception) {
-                // Failed to load extra configuration, continuing with basic info
+
+                val mappedSizes = existingSizes.map { size ->
+                    ProductSizeInput(
+                        name = size.sizeName.orEmpty(),
+                        price = size.price.toString()
+                    )
+                }
+
+                _uiState.update { state ->
+                    val resolvedCategoryId = detail?.categoryId ?: product.categoryId
+                    val resolvedName = detail?.name?.takeIf { it.isNotBlank() } ?: product.name.orEmpty()
+                    val resolvedDescription = detail?.description?.takeIf { it.isNotBlank() } ?: product.description.orEmpty()
+                    val resolvedImageUrl = detail?.imageUrl?.takeIf { it.isNotBlank() } ?: product.imageUrl.orEmpty()
+                    val resolvedBasePrice = detail?.basePrice ?: product.basePrice
+                    val hasSizes = mappedSizes.isNotEmpty()
+
+                    state.copy(
+                        categoryIdInput = resolvedCategoryId.toString(),
+                        name = resolvedName,
+                        description = resolvedDescription,
+                        imageUrl = resolvedImageUrl,
+                        manualBasePriceInput = resolvedBasePrice.toString(),
+                        basePriceInput = if (hasSizes) mappedSizes.deriveBasePriceInput() else resolvedBasePrice.toString(),
+                        hasSizes = hasSizes,
+                        sizes = mappedSizes,
+                        selectedToppingIds = existingToppingIds
+                    )
+                }
+            } catch (_: Exception) {
+                // Keep the basic prefilled values if loading extra config fails.
             }
         }
     }
@@ -177,6 +218,7 @@ class AdminProductViewModel(
                 name = "",
                 description = "",
                 basePriceInput = "",
+                manualBasePriceInput = "",
                 imageUrl = "",
                 hasSizes = false,
                 sizes = emptyList(),
@@ -189,14 +231,14 @@ class AdminProductViewModel(
     }
 
     fun nextStep() {
-        _uiState.update { 
-            if (it.currentStep < 3) it.copy(currentStep = it.currentStep + 1) else it
+        _uiState.update { state ->
+            if (state.currentStep < 3) state.copy(currentStep = state.currentStep + 1) else state
         }
     }
 
     fun previousStep() {
-        _uiState.update { 
-            if (it.currentStep > 1) it.copy(currentStep = it.currentStep - 1) else it
+        _uiState.update { state ->
+            if (state.currentStep > 1) state.copy(currentStep = state.currentStep - 1) else state
         }
     }
 
@@ -213,55 +255,101 @@ class AdminProductViewModel(
     }
 
     fun onBasePriceChanged(value: String) {
-        _uiState.update { it.copy(basePriceInput = value, message = null, isError = false) }
+        _uiState.update {
+            it.copy(
+                manualBasePriceInput = value,
+                basePriceInput = if (it.hasSizes) it.basePriceInput else value,
+                message = null,
+                isError = false
+            )
+        }
     }
 
     fun onSizeChanged(index: Int, name: String, price: String) {
         _uiState.update { state ->
             if (index !in state.sizes.indices) return@update state
-            val newSizes = state.sizes.toMutableList()
-            newSizes[index] = ProductSizeInput(name, price)
-            state.copy(sizes = newSizes)
+            val updatedSizes = state.sizes.toMutableList()
+            updatedSizes[index] = ProductSizeInput(name = name, price = price)
+            state.copy(
+                sizes = updatedSizes,
+                basePriceInput = if (state.hasSizes) updatedSizes.deriveBasePriceInput() else state.basePriceInput,
+                message = null,
+                isError = false
+            )
         }
     }
 
     fun addSizeInput() {
         _uiState.update { state ->
-            val seed = if (state.sizes.isEmpty()) ProductSizeInput("M", "0") else ProductSizeInput()
-            state.copy(hasSizes = true, sizes = state.sizes + seed)
+            val updatedSizes = state.sizes + ProductSizeInput()
+            state.copy(
+                hasSizes = true,
+                sizes = updatedSizes,
+                basePriceInput = updatedSizes.deriveBasePriceInput(),
+                message = null,
+                isError = false
+            )
         }
     }
 
     fun removeSizeInput(index: Int) {
         _uiState.update { state ->
             if (index !in state.sizes.indices) return@update state
-            val updated = state.sizes.filterIndexed { i, _ -> i != index }
-            state.copy(sizes = updated)
+            val updatedSizes = state.sizes.filterIndexed { i, _ -> i != index }
+            state.copy(
+                sizes = updatedSizes,
+                basePriceInput = if (updatedSizes.isNotEmpty()) updatedSizes.deriveBasePriceInput() else state.manualBasePriceInput,
+                message = null,
+                isError = false
+            )
         }
     }
 
     fun setHasSizes(enabled: Boolean) {
         _uiState.update { state ->
             if (!enabled) {
-                state.copy(hasSizes = false, sizes = emptyList(), message = null, isError = false)
+                state.copy(
+                    hasSizes = false,
+                    sizes = emptyList(),
+                    basePriceInput = state.manualBasePriceInput,
+                    message = null,
+                    isError = false
+                )
             } else {
-                val seeded = if (state.sizes.isEmpty()) listOf(ProductSizeInput("M", "0")) else state.sizes
-                state.copy(hasSizes = true, sizes = seeded, message = null, isError = false)
+                val seededSizes = if (state.sizes.isEmpty()) {
+                    listOf(ProductSizeInput())
+                } else {
+                    state.sizes
+                }
+                state.copy(
+                    hasSizes = true,
+                    sizes = seededSizes,
+                    basePriceInput = seededSizes.deriveBasePriceInput(),
+                    message = null,
+                    isError = false
+                )
             }
         }
     }
 
     fun toggleToppingSelection(toppingId: Long) {
         _uiState.update { state ->
-            val newSelection = state.selectedToppingIds.toMutableSet()
-            if (newSelection.contains(toppingId)) newSelection.remove(toppingId)
-            else newSelection.add(toppingId)
-            state.copy(selectedToppingIds = newSelection)
+            val updatedIds = state.selectedToppingIds.toMutableSet()
+            if (updatedIds.contains(toppingId)) {
+                updatedIds.remove(toppingId)
+            } else {
+                updatedIds.add(toppingId)
+            }
+            state.copy(selectedToppingIds = updatedIds, message = null, isError = false)
         }
     }
 
     fun clearMessage() {
         _uiState.update { it.copy(message = null, isError = false) }
+    }
+
+    fun setMessage(message: String, isError: Boolean = false) {
+        _uiState.update { it.copy(message = message, isError = isError) }
     }
 
     fun toggleProductStatus(productId: Long, currentStatus: Int, onSuccess: () -> Unit) {
@@ -270,20 +358,54 @@ class AdminProductViewModel(
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
                 val newStatus = if (currentStatus == 1) 0 else 1
                 val response = repository.updateProductStatus(productId, newStatus)
-                if (response.isSuccessful) {
-                    _uiState.update { it.copy(loading = false, message = "Đã cập nhật trạng thái món ăn") }
-                    onSuccess()
-                } else {
-                    _uiState.update { it.copy(loading = false, message = "Lỗi cập nhật trạng thái: ${response.code()}", isError = true) }
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Cap nhat trang thai mon an", response))
                 }
+                _uiState.update { it.copy(loading = false, message = "Da cap nhat trang thai mon an", isError = false) }
+                onSuccess()
             } catch (e: Exception) {
-                _uiState.update { it.copy(loading = false, message = "Lỗi kết nối: ${e.message}", isError = true) }
+                _uiState.update { it.copy(loading = false, message = "Loi ket noi: ${e.message}", isError = true) }
             }
         }
     }
 
-    fun setMessage(message: String, isError: Boolean = false) {
-        _uiState.update { it.copy(message = message, isError = isError) }
+    suspend fun deleteProduct(productId: Long): Boolean {
+        return try {
+            _uiState.update { it.copy(loading = true, message = null, isError = false) }
+
+            val toppingsResponse = productRepository.getProductToppings(productId)
+            if (!toppingsResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Tai topping cua san pham", toppingsResponse))
+            }
+            toppingsResponse.body().orEmpty().forEach { topping ->
+                val removeResponse = repository.removeToppingFromProduct(productId, topping.id)
+                if (!removeResponse.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Xoa topping khoi san pham", removeResponse))
+                }
+            }
+
+            val sizesResponse = sizeRepository.getSizesByProduct(productId)
+            if (!sizesResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Tai size cua san pham", sizesResponse))
+            }
+            sizesResponse.body().orEmpty().forEach { size ->
+                val deleteResponse = sizeRepository.deleteSize(size.id)
+                if (!deleteResponse.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Xoa size '${size.sizeName}'", deleteResponse))
+                }
+            }
+
+            val deleteProductResponse = repository.deleteProduct(productId)
+            if (!deleteProductResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Xoa san pham", deleteProductResponse))
+            }
+
+            _uiState.update { it.copy(loading = false, message = "Xoa san pham thanh cong", isError = false) }
+            true
+        } catch (e: Exception) {
+            _uiState.update { it.copy(loading = false, message = "Xoa san pham loi: ${e.message}", isError = true) }
+            false
+        }
     }
 
     fun uploadImage(file: MultipartBody.Part) {
@@ -291,41 +413,28 @@ class AdminProductViewModel(
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
                 val response = repository.uploadImage(file)
-                if (response.isSuccessful) {
-                    val url = response.body()?.resolvedImageUrl.orEmpty()
-                    if (url.isBlank()) {
-                        _uiState.update {
-                            it.copy(
-                                loading = false,
-                                message = "Upload thành công nhưng BE chưa trả về 'imageUrl'. Hãy sửa response upload để trả đúng key imageUrl.",
-                                isError = true
-                            )
-                        }
-                    } else {
-                        _uiState.update {
-                            it.copy(
-                                imageUrl = url,
-                                loading = false,
-                                message = "Upload ảnh thành công",
-                                isError = false
-                            )
-                        }
-                    }
-                } else {
-                    val serverError = response.errorBody()?.string().orEmpty()
-                    _uiState.update {
-                        it.copy(
-                            loading = false,
-                            message = "Upload lỗi (${response.code()}): ${if (serverError.isNotBlank()) serverError else "Không rõ"}",
-                            isError = true
-                        )
-                    }
+                if (!response.isSuccessful) {
+                    throw IllegalStateException(buildApiError("Upload anh", response))
+                }
+
+                val url = response.body()?.resolvedImageUrl.orEmpty()
+                if (url.isBlank()) {
+                    throw IllegalStateException("Upload thanh cong nhung backend chua tra ve imageUrl")
+                }
+
+                _uiState.update {
+                    it.copy(
+                        imageUrl = url,
+                        loading = false,
+                        message = "Upload anh thanh cong",
+                        isError = false
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         loading = false,
-                        message = "Upload lỗi: ${e.message}",
+                        message = "Upload loi: ${e.message}",
                         isError = true
                     )
                 }
@@ -336,121 +445,69 @@ class AdminProductViewModel(
     suspend fun createProduct(): Boolean {
         val state = _uiState.value
         val categoryId = state.categoryIdInput.toLongOrNull()
-        val basePrice = state.basePriceInput.toDoubleOrNull()
+        val manualBasePrice = state.manualBasePriceInput.toDoubleOrNull()
+        val resolvedBasePrice = if (state.hasSizes) {
+            state.sizes.mapNotNull { it.price.toDoubleOrNull() }.filter { it > 0.0 }.minOrNull()
+        } else {
+            manualBasePrice
+        }
 
         if (categoryId == null) {
-            _uiState.update { it.copy(message = "Vui lòng chọn danh mục", isError = true) }
+            _uiState.update { it.copy(message = "Vui long chon danh muc", isError = true) }
             return false
         }
 
-        if (basePrice == null || basePrice < 0.0) {
-            _uiState.update { it.copy(message = "Giá cơ bản phải lớn hơn 0", isError = true) }
+        if (!validatePricing(state, resolvedBasePrice)) {
             return false
         }
 
-        if (basePrice <= 0.0) {
-            _uiState.update { it.copy(message = "Giá cơ bản phải lớn hơn 0", isError = true) }
-            return false
-        }
+        var createdProductId: Long? = null
 
-        if (state.hasSizes && state.sizes.isEmpty()) {
-            _uiState.update { it.copy(message = "Vui lòng thêm ít nhất một size", isError = true) }
-            return false
-        }
-
-        val invalidSize = state.sizes.firstOrNull { size ->
-            size.name.isBlank() || size.price.toDoubleOrNull() == null || size.price.toDoubleOrNull()!! < 0.0
-        }
-        if (state.hasSizes && invalidSize != null) {
-            _uiState.update {
-                it.copy(
-                    message = "Size '${invalidSize.name.ifBlank { "(trống)" }}' có giá không hợp lệ",
-                    isError = true
-                )
-            }
-            return false
-        }
-
-            var createdProductId: Long? = null
-
-        try {
+        return try {
             _uiState.update { it.copy(loading = true, message = null, isError = false) }
 
-            val request = AdminProductRequest(
+            val productRequest = AdminProductRequest(
                 categoryId = categoryId,
                 name = state.name.trim(),
                 description = state.description.trim(),
-                basePrice = basePrice,
+                basePrice = resolvedBasePrice!!,
                 imageUrl = state.imageUrl,
                 isCustomizable = if (state.hasSizes || state.selectedToppingIds.isNotEmpty()) 1 else 0,
                 status = 1
             )
 
-            val productResponse = repository.createProduct(request)
-            if (!productResponse.isSuccessful) {
-                val serverError = productResponse.errorBody()?.string().orEmpty()
-                throw IllegalStateException("Tạo sản phẩm thất bại (${productResponse.code()}): ${if (serverError.isNotBlank()) serverError else "Không rõ"}")
+            val createProductResponse = repository.createProduct(productRequest)
+            if (!createProductResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Tao san pham", createProductResponse))
             }
-            val createdProduct = productResponse.body() ?: throw IllegalStateException("Tạo sản phẩm trả về body rỗng")
+
+            val createdProduct = createProductResponse.body()
+                ?: throw IllegalStateException("Tao san pham that bai: body rong")
             createdProductId = createdProduct.id
 
-            if (state.hasSizes) {
-                val existingSizesResponse = sizeRepository.getSizesByProduct(createdProductId)
-                val existingByName = if (existingSizesResponse.isSuccessful) {
-                    existingSizesResponse.body().orEmpty()
-                        .associateBy { it.sizeName.trim().uppercase() }
-                } else {
-                    emptyMap()
-                }
-
-                state.sizes.forEach { sizeInput ->
-                    val cleanName = sizeInput.name.trim()
-                    val sizePrice = sizeInput.price.toDoubleOrNull()
-                        ?: throw IllegalArgumentException("Giá size '$cleanName' không hợp lệ")
-                    val request = CreateSizeRequest(sizeName = cleanName, price = sizePrice)
-
-                    val existing = existingByName[cleanName.uppercase()]
-                    val sizeResponse = if (existing != null) {
-                        sizeRepository.updateSize(existing.id, request)
-                    } else {
-                        sizeRepository.createSize(createdProductId, request)
-                    }
-
-                    if (!sizeResponse.isSuccessful) {
-                        val serverError = sizeResponse.errorBody()?.string().orEmpty()
-                        throw IllegalStateException(
-                            "Không thể lưu size '$cleanName' (${sizeResponse.code()})" +
-                                if (serverError.isNotBlank()) ": $serverError" else ""
-                        )
-                    }
-                }
-            }
-
-            state.selectedToppingIds.forEach { toppingId ->
-                val toppingResponse = repository.addToppingToProduct(createdProductId, toppingId)
-                if (!toppingResponse.isSuccessful) {
-                    throw IllegalStateException("Không thể gán topping ID=$toppingId")
-                }
-            }
+            recreateSizes(createdProductId, state)
+            recreateToppings(createdProductId, state.selectedToppingIds)
 
             _uiState.update {
                 it.copy(
+                    loading = false,
+                    message = "Them mon va cau hinh thanh cong",
+                    isError = false,
+                    showAddForm = false,
+                    editingProductId = null,
+                    currentStep = 1,
                     categoryIdInput = "",
                     name = "",
                     description = "",
                     basePriceInput = "",
+                    manualBasePriceInput = "",
                     imageUrl = "",
                     hasSizes = false,
                     sizes = emptyList(),
-                    selectedToppingIds = emptySet(),
-                    loading = false,
-                    message = "Thêm món và cấu hình thành công",
-                    isError = false,
-                    showAddForm = false,
-                    currentStep = 1
+                    selectedToppingIds = emptySet()
                 )
             }
-            return true
+            true
         } catch (e: Exception) {
             if (createdProductId != null) {
                 runCatching { repository.deleteProduct(createdProductId) }
@@ -458,70 +515,64 @@ class AdminProductViewModel(
             _uiState.update {
                 it.copy(
                     loading = false,
-                    message = "Lỗi hệ thống: ${e.message ?: "Không rõ nguyên nhân"}",
+                    message = "Loi he thong: ${e.message}",
                     isError = true
                 )
             }
-            return false
+            false
         }
     }
 
     suspend fun updateProduct(): Boolean {
+        return updateProductFixed()
+    }
+
+    suspend fun updateProductFixed(): Boolean {
         val state = _uiState.value
         val productId = state.editingProductId ?: return false
         val categoryId = state.categoryIdInput.toLongOrNull()
-        val basePrice = state.basePriceInput.toDoubleOrNull()
+        val manualBasePrice = state.manualBasePriceInput.toDoubleOrNull()
+        val resolvedBasePrice = if (state.hasSizes) {
+            state.sizes.mapNotNull { it.price.toDoubleOrNull() }.filter { it > 0.0 }.minOrNull()
+        } else {
+            manualBasePrice
+        }
 
         if (categoryId == null) {
-            _uiState.update { it.copy(message = "Vui lòng chọn danh mục", isError = true) }
+            _uiState.update { it.copy(message = "Vui long chon danh muc", isError = true) }
             return false
         }
 
-        if (basePrice == null || basePrice <= 0.0) {
-            _uiState.update { it.copy(message = "Giá cơ bản phải lớn hơn 0", isError = true) }
+        if (!validatePricing(state, resolvedBasePrice)) {
             return false
         }
 
-        if (state.hasSizes && state.sizes.isEmpty()) {
-            _uiState.update { it.copy(message = "Vui lòng thêm ít nhất một size", isError = true) }
-            return false
-        }
-
-        val invalidSize = state.sizes.firstOrNull { size ->
-            size.name.isBlank() || size.price.toDoubleOrNull() == null || size.price.toDoubleOrNull()!! < 0.0
-        }
-        if (state.hasSizes && invalidSize != null) {
-            _uiState.update {
-                it.copy(
-                    message = "Size '${invalidSize.name.ifBlank { "(trống)" }}' có giá không hợp lệ",
-                    isError = true
-                )
-            }
-            return false
-        }
-
-        try {
+        return try {
             _uiState.update { it.copy(loading = true, message = null, isError = false) }
 
-            val request = UpdateProductRequest(
+            val updateRequest = UpdateProductRequest(
                 categoryId = categoryId,
                 name = state.name.trim(),
                 description = state.description.trim(),
-                basePrice = basePrice,
+                basePrice = resolvedBasePrice!!,
                 imageUrl = state.imageUrl.ifBlank { "default-image-url" },
                 isCustomizable = if (state.hasSizes || state.selectedToppingIds.isNotEmpty()) 1 else 0
             )
 
-            val productResponse = repository.updateProduct(productId, request)
-            if (!productResponse.isSuccessful) {
-                val serverError = productResponse.errorBody()?.string().orEmpty()
-                throw IllegalStateException("Cập nhật sản phẩm thất bại (${productResponse.code()}): ${if (serverError.isNotBlank()) serverError else "Không rõ"}")
+            val updateProductResponse = repository.updateProduct(productId, updateRequest)
+            if (!updateProductResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Cap nhat san pham", updateProductResponse))
             }
+
+            clearExistingSizes(productId)
+            clearExistingToppings(productId)
+            recreateSizes(productId, state)
+            recreateToppings(productId, state.selectedToppingIds)
 
             _uiState.update {
                 it.copy(
                     loading = false,
-                    message = "Cập nhật sản phẩm thành công",
+                    message = "Cap nhat san pham thanh cong",
                     isError = false,
                     showAddForm = false,
                     editingProductId = null,
@@ -529,16 +580,113 @@ class AdminProductViewModel(
                 )
             }
             resetFormData()
-            return true
+            true
         } catch (e: Exception) {
             _uiState.update {
                 it.copy(
                     loading = false,
-                    message = "Lỗi cập nhật sản phẩm: ${e.message ?: "Không rõ nguyên nhân"}",
+                    message = "Loi cap nhat san pham: ${e.message}",
+                    isError = true
+                )
+            }
+            false
+        }
+    }
+
+    private fun validatePricing(state: AdminProductUiState, resolvedBasePrice: Double?): Boolean {
+        if (state.hasSizes && state.sizes.isEmpty()) {
+            _uiState.update { it.copy(message = "Vui long them it nhat mot size", isError = true) }
+            return false
+        }
+
+        val invalidSize = state.sizes.firstOrNull { size ->
+            size.name.isBlank() ||
+                size.price.toDoubleOrNull() == null ||
+                size.price.toDoubleOrNull()!! <= 0.0
+        }
+        if (state.hasSizes && invalidSize != null) {
+            _uiState.update {
+                it.copy(
+                    message = "Size '${invalidSize.name.ifBlank { "(trong)" }}' co gia khong hop le",
                     isError = true
                 )
             }
             return false
         }
+
+        if (!state.hasSizes && (state.manualBasePriceInput.toDoubleOrNull() == null || state.manualBasePriceInput.toDoubleOrNull()!! <= 0.0)) {
+            _uiState.update { it.copy(message = "Gia ban phai lon hon 0", isError = true) }
+            return false
+        }
+
+        if (resolvedBasePrice == null || resolvedBasePrice <= 0.0) {
+            _uiState.update { it.copy(message = "Gia mon khong hop le", isError = true) }
+            return false
+        }
+
+        return true
+    }
+
+    private suspend fun clearExistingSizes(productId: Long) {
+        val existingSizesResponse = sizeRepository.getSizesByProduct(productId)
+        if (!existingSizesResponse.isSuccessful) {
+            throw IllegalStateException(buildApiError("Tai size hien tai cua san pham", existingSizesResponse))
+        }
+
+        existingSizesResponse.body().orEmpty().forEach { size ->
+            val deleteResponse = sizeRepository.deleteSize(size.id)
+            if (!deleteResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Xoa size '${size.sizeName}'", deleteResponse))
+            }
+        }
+    }
+
+    private suspend fun recreateSizes(productId: Long, state: AdminProductUiState) {
+        if (!state.hasSizes) return
+
+        state.sizes.forEach { input ->
+            val cleanName = input.name.trim()
+            val cleanPrice = input.price.toDoubleOrNull()
+                ?: throw IllegalArgumentException("Gia size '$cleanName' khong hop le")
+
+            val createResponse = sizeRepository.createSize(
+                productId = productId,
+                request = CreateSizeRequest(
+                    sizeName = cleanName,
+                    price = cleanPrice
+                )
+            )
+            if (!createResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Tao size '$cleanName'", createResponse))
+            }
+        }
+    }
+
+    private suspend fun clearExistingToppings(productId: Long) {
+        val existingToppingsResponse = productRepository.getProductToppings(productId)
+        if (!existingToppingsResponse.isSuccessful) {
+            throw IllegalStateException(buildApiError("Tai topping hien tai cua san pham", existingToppingsResponse))
+        }
+
+        existingToppingsResponse.body().orEmpty().forEach { topping ->
+            val removeResponse = repository.removeToppingFromProduct(productId, topping.id)
+            if (!removeResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Go topping ID=${topping.id}", removeResponse))
+            }
+        }
+    }
+
+    private suspend fun recreateToppings(productId: Long, toppingIds: Set<Long>) {
+        toppingIds.forEach { toppingId ->
+            val addResponse = repository.addToppingToProduct(productId, toppingId)
+            if (!addResponse.isSuccessful) {
+                throw IllegalStateException(buildApiError("Them topping ID=$toppingId", addResponse))
+            }
+        }
+    }
+
+    private fun buildApiError(action: String, response: Response<*>): String {
+        val serverError = response.errorBody()?.string().orEmpty()
+        return "$action that bai (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else ""
     }
 }

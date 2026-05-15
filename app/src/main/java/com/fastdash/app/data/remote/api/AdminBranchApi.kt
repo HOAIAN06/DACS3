@@ -8,6 +8,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface AdminBranchApi {
     @GET("api/v1/admin/branches")
@@ -25,11 +26,11 @@ interface AdminBranchApi {
     @DELETE("api/v1/admin/branches/{id}")
     suspend fun deleteBranch(@Path("id") id: Long): Response<Void>
 
-    @PATCH("api/v1/admin/branches/{id}/status")
-    suspend fun updateBranchStatus(
-        @Path("id") id: Long,
-        @Body request: UpdateStatusRequest
-    ): Response<BranchResponse>
+     @PATCH("api/v1/admin/branches/{id}/status")
+     suspend fun updateBranchStatus(
+         @Path("id") id: Long,
+         @Query("status") status: Int
+     ): Response<BranchResponse>
 }
 
 data class BranchResponse(

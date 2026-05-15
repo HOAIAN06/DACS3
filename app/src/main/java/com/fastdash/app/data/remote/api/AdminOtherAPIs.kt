@@ -1,5 +1,8 @@
 package com.fastdash.app.data.remote.api
 
+import com.fastdash.app.data.model.response.AdminDashboardSummaryResponse
+import com.fastdash.app.data.model.response.AdminOrderSummaryResponse
+import com.fastdash.app.data.model.response.AdminPageResponse
 import com.fastdash.app.data.model.response.OrderResponse
 import com.google.gson.annotations.SerializedName
 import retrofit2.Response
@@ -10,6 +13,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface AdminToppingApi {
     @GET("api/v1/admin/toppings")
@@ -27,20 +31,20 @@ interface AdminToppingApi {
     @DELETE("api/v1/admin/toppings/{id}")
     suspend fun deleteTopping(@Path("id") id: Long): Response<Void>
 
-    @PATCH("api/v1/admin/toppings/{id}/status")
-    suspend fun updateToppingStatus(
-        @Path("id") id: Long,
-        @Body request: UpdateStatusRequest
-    ): Response<AdminToppingResponse>
+     @PATCH("api/v1/admin/toppings/{id}/status")
+     suspend fun updateToppingStatus(
+         @Path("id") id: Long,
+         @Query("status") status: Int
+     ): Response<AdminToppingResponse>
 }
 
 data class AdminToppingResponse(
     val id: Long,
-    val name: String,
+    val name: String? = null,
     val price: Double,
     @SerializedName(value = "imageUrl", alternate = ["image_url", "url", "secure_url"]) val imageUrl: String? = null,
     val status: Int,
-    val createdAt: String
+    val createdAt: String? = null
 )
 
 data class CreateToppingRequest(
@@ -68,11 +72,11 @@ interface AdminSizeApi {
     @DELETE("api/v1/admin/products/sizes/{sizeId}")
     suspend fun deleteSize(@Path("sizeId") sizeId: Long): Response<Void>
 
-    @PATCH("api/v1/admin/products/sizes/{sizeId}/status")
-    suspend fun updateSizeStatus(
-        @Path("sizeId") sizeId: Long,
-        @Body request: UpdateStatusRequest
-    ): Response<AdminSizeResponse>
+     @PATCH("api/v1/admin/products/sizes/{sizeId}/status")
+     suspend fun updateSizeStatus(
+         @Path("sizeId") sizeId: Long,
+         @Query("status") status: Int
+     ): Response<AdminSizeResponse>
 }
 
 data class AdminSizeResponse(
@@ -99,7 +103,7 @@ interface AdminPaymentApi {
     @PATCH("api/v1/admin/payments/{id}/status")
     suspend fun updatePaymentStatus(
         @Path("id") id: Long,
-        @Body request: UpdatePaymentStatusRequest
+        @Query("status") status: String
     ): Response<AdminPaymentResponse>
 }
 
@@ -114,12 +118,8 @@ data class AdminPaymentResponse(
     val createdAt: String
 )
 
-data class UpdatePaymentStatusRequest(
-    val status: String
-)
-
 interface AdminOrderStatusApi {
-     @PATCH("api/v1/admin/orders/{id}/status")
+     @PUT("api/v1/admin/orders/{id}/status")
      suspend fun updateOrderStatus(
          @Path("id") id: Long,
          @Body request: UpdateOrderStatusRequest
@@ -128,10 +128,22 @@ interface AdminOrderStatusApi {
 
 interface AdminOrderApi {
     @GET("api/v1/admin/orders")
-    suspend fun getOrders(): Response<List<OrderResponse>>
+    suspend fun getOrders(
+        @Query("page") page: Int? = null,
+        @Query("size") size: Int? = null,
+        @Query("status") status: String? = null,
+        @Query("keyword") keyword: String? = null,
+        @Query("fromDate") fromDate: String? = null,
+        @Query("toDate") toDate: String? = null
+    ): Response<AdminPageResponse<AdminOrderSummaryResponse>>
 
     @GET("api/v1/admin/orders/{id}")
     suspend fun getOrderDetail(@Path("id") id: Long): Response<OrderResponse>
+}
+
+interface AdminDashboardApi {
+    @GET("api/v1/admin/dashboard/summary")
+    suspend fun getSummary(): Response<AdminDashboardSummaryResponse>
 }
 
 data class UpdateOrderStatusRequest(
@@ -154,19 +166,19 @@ interface AdminCategoryApi {
      @DELETE("api/v1/admin/categories/{id}")
      suspend fun deleteCategory(@Path("id") id: Long): Response<Void>
 
-     @PATCH("api/v1/admin/categories/{id}/status")
-     suspend fun updateCategoryStatus(
-         @Path("id") id: Long,
-         @Body request: UpdateStatusRequest
-     ): Response<AdminCategoryResponse>
+      @PATCH("api/v1/admin/categories/{id}/status")
+      suspend fun updateCategoryStatus(
+          @Path("id") id: Long,
+          @Query("status") status: Int
+      ): Response<AdminCategoryResponse>
 }
 
 data class AdminCategoryResponse(
      val id: Long,
-     val name: String,
+     val name: String? = null,
      val description: String? = null,
      val status: Int,
-     val createdAt: String
+     val createdAt: String? = null
 )
 
 data class CreateCategoryRequest(
@@ -190,11 +202,11 @@ interface AdminProductApiExtended {
      @DELETE("api/v1/admin/products/{id}")
      suspend fun deleteProduct(@Path("id") id: Long): Response<Void>
 
-     @PATCH("api/v1/admin/products/{id}/status")
-     suspend fun updateProductStatus(
-         @Path("id") id: Long,
-         @Body request: UpdateStatusRequest
-     ): Response<AdminProductResponse>
+      @PATCH("api/v1/admin/products/{id}/status")
+      suspend fun updateProductStatus(
+          @Path("id") id: Long,
+          @Query("status") status: Int
+      ): Response<AdminProductResponse>
 
      @POST("api/v1/admin/products/{productId}/toppings/{toppingId}")
      suspend fun addToppingToProduct(

@@ -64,7 +64,8 @@ class MainActivity : ComponentActivity() {
                         adminProductRepository,
                         adminCategoryRepository,
                         adminToppingRepository,
-                        adminSizeRepository
+                        adminSizeRepository,
+                        productRepository
                     )
                 )
                 val adminCategoryViewModel: AdminCategoryViewModel = viewModel(factory = AdminCategoryViewModelFactory(adminCategoryRepository))
@@ -80,6 +81,7 @@ class MainActivity : ComponentActivity() {
                 val cartMessage by cartViewModel.message.collectAsState()
                 val profileState by profileViewModel.user.collectAsState()
                 val orderListState by orderViewModel.orders.collectAsState()
+                val selectedOrderState by orderViewModel.selectedOrder.collectAsState()
 
                 fun currentRole(): String = tokenManager.getRole().orEmpty().trim().uppercase()
                 fun isAdmin(): Boolean = currentRole() == "ADMIN"
@@ -138,14 +140,10 @@ class MainActivity : ComponentActivity() {
                             onOpenCategories = { route = AppRoute.ADMIN_CATEGORIES },
                             onOpenSizes = { route = AppRoute.ADMIN_SIZES },
                             onOpenToppings = { route = AppRoute.ADMIN_TOPPINGS },
-                            onOpenPlaceholder = { title, _ ->
-                                when (title) {
-                                    "ADMIN_USERS" -> route = AppRoute.ADMIN_USERS
-                                    "ADMIN_BRANCHES" -> route = AppRoute.ADMIN_BRANCHES
-                                    "ADMIN_PAYMENTS" -> route = AppRoute.ADMIN_PAYMENTS
-                                    else -> route = AppRoute.ADMIN_PLACEHOLDER
-                                }
-                            },
+                            onOpenUsers = { route = AppRoute.ADMIN_USERS },
+                            onOpenBranches = { route = AppRoute.ADMIN_BRANCHES },
+                            onOpenPayments = { route = AppRoute.ADMIN_PAYMENTS },
+                            onOpenPlaceholder = { _, _ -> route = AppRoute.ADMIN_PLACEHOLDER },
                             onLogout = { logout() }
                         )
                         AppRoute.ADMIN_PRODUCT -> AdminProductScreen(adminProductViewModel, { route = AppRoute.ADMIN_HOME }, { logout() })
@@ -167,6 +165,19 @@ class MainActivity : ComponentActivity() {
                             onOpenOrders = { route = AppRoute.ORDER_HISTORY },
                             onOpenProfile = { route = AppRoute.PROFILE },
                             onCheckout = { route = AppRoute.CART },
+                            orders = orderListState.map {
+                                OrderHistoryUiModel(it.id, it.orderCode, it.createdAt, it.items?.size ?: 0, it.totalAmount, it.status)
+                            },
+                            onOpenOrder = {
+                                selectedOrderId = it.id
+                                orderViewModel.loadOrderDetail(it.id)
+                                route = AppRoute.ORDER_DETAIL
+                            },
+                            profileFullName = profileState?.fullName ?: "User",
+                            profileEmail = profileState?.email ?: "",
+                            profilePhone = profileState?.phone ?: "",
+                            profileRole = profileState?.role ?: "USER",
+                            onLogout = { logout() },
                             cartCount = cartState?.items?.size ?: 0,
                             cartTotal = cartState?.total ?: 0.0
                         )
@@ -192,13 +203,40 @@ class MainActivity : ComponentActivity() {
                             }
                             OrderHistoryScreen(orders = uiOrders, onBack = { route = rootRoute() }, onOpenOrder = { 
                                 selectedOrderId = it.id
+                                orderViewModel.loadOrderDetail(it.id)
                                 route = AppRoute.ORDER_DETAIL
                             })
+                        }
+                        AppRoute.ORDER_DETAIL -> {
+                            selectedOrderState?.let { order ->
+                                OrderDetailScreen(
+                                    order = com.fastdash.app.ui.order.OrderDetailUiModel(
+                                        id = order.id,
+                                        orderCode = order.orderCode,
+                                        status = order.status,
+                                        createdAt = order.createdAt,
+                                        deliveryAddress = order.deliveryAddress.orEmpty(),
+                                        shippingFee = order.shippingFee,
+                                        items = order.items.orEmpty().map { item ->
+                                            com.fastdash.app.ui.order.OrderItemUiModel(
+                                                id = item.id,
+                                                name = item.productName,
+                                                quantity = item.quantity,
+                                                unitPrice = item.unitPrice
+                                            )
+                                        }
+                                    ),
+                                    onBack = { route = AppRoute.ORDER_HISTORY },
+                                    onReorder = { route = AppRoute.HOME }
+                                )
+                            } ?: run {
+                                selectedOrderId?.let { orderViewModel.loadOrderDetail(it) }
+                            }
                         }
                         AppRoute.CART -> CartScreen(
                             cartItems = cartState?.items ?: emptyList(),
                             subtotal = cartState?.subtotal ?: 0.0,
-                            shippingFee = cartState?.shippingFee ?: 0.0,
+                            shippingFee = cartState?.resolvedShippingFee ?: 0.0,
                             onBack = { route = rootRoute() },
                             onRemoveItem = { cartViewModel.removeFromCart(it) },
                             onCheckout = { route = AppRoute.CHECKOUT }
@@ -206,12 +244,12 @@ class MainActivity : ComponentActivity() {
                         AppRoute.CHECKOUT -> CheckoutScreen(
                             total = cartState?.total ?: 0.0,
                             onBack = { route = AppRoute.CART },
-                            onConfirm = { _, _, addr ->
+                            onConfirm = { request ->
                                 scope.launch {
-                                    val items = cartState?.items?.map { OrderItemRequest(it.productId, it.quantity, null) } ?: emptyList()
-                                    if (orderViewModel.createOrder(addr, items)) {
+                                    if (orderViewModel.createOrderFromCart(request)) {
                                         cartViewModel.loadCart()
-                                        route = AppRoute.PAYMENT
+                                        orderViewModel.loadOrders()
+                                        route = AppRoute.ORDER_HISTORY
                                     }
                                 }
                             }
@@ -231,7 +269,7 @@ class MainActivity : ComponentActivity() {
                             fullName = profileState?.fullName ?: "User",
                             email = profileState?.email ?: "",
                             phone = profileState?.phone ?: "",
-                            role = profileState?.role ?: "CUSTOMER",
+                            role = profileState?.role ?: "USER",
                             onBack = { route = rootRoute() },
                             onOpenOrders = { route = AppRoute.ORDER_HISTORY },
                             onLogout = { logout() }

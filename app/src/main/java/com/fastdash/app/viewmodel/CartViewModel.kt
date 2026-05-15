@@ -27,29 +27,48 @@ class CartViewModel(private val repository: CartRepository) : ViewModel() {
                 if (response.isSuccessful) {
                     _cart.value = response.body()
                 } else {
-                    _message.value = "Không thể tải giỏ hàng: ${response.code()}"
+                    _message.value = "Khong the tai gio hang: ${response.code()}"
                 }
             } catch (e: Exception) {
-                _message.value = "Lỗi kết nối: ${e.message}"
+                _message.value = "Loi ket noi: ${e.message}"
             } finally {
                 _loading.value = false
             }
         }
     }
 
-    fun addToCart(productId: Long, quantity: Int, size: String?, toppingIds: List<Long>) {
+    fun addToCart(productId: Long, quantity: Int, productSizeId: Long?, toppingIds: List<Long>) {
         viewModelScope.launch {
             _loading.value = true
             try {
-                val response = repository.addToCart(productId, quantity, size, toppingIds)
+                val response = repository.addToCart(productId, quantity, productSizeId, toppingIds)
                 if (response.isSuccessful) {
                     _cart.value = response.body()
-                    _message.value = "Đã thêm vào giỏ hàng"
+                    _message.value = "Da them vao gio hang"
                 } else {
-                    _message.value = "Thêm vào giỏ thất bại: ${response.code()}"
+                    _message.value = "Them vao gio that bai: ${response.code()}"
                 }
             } catch (e: Exception) {
-                _message.value = "Lỗi: ${e.message}"
+                _message.value = "Loi: ${e.message}"
+            } finally {
+                _loading.value = false
+            }
+        }
+    }
+
+    fun updateCartItem(itemId: Long, quantity: Int, note: String? = null) {
+        viewModelScope.launch {
+            _loading.value = true
+            try {
+                val response = repository.updateCartItem(itemId, quantity, note)
+                if (response.isSuccessful) {
+                    _cart.value = response.body()
+                    _message.value = "Da cap nhat gio hang"
+                } else {
+                    _message.value = "Cap nhat that bai: ${response.code()}"
+                }
+            } catch (e: Exception) {
+                _message.value = "Loi: ${e.message}"
             } finally {
                 _loading.value = false
             }
@@ -63,12 +82,12 @@ class CartViewModel(private val repository: CartRepository) : ViewModel() {
                 val response = repository.removeFromCart(itemId)
                 if (response.isSuccessful) {
                     _cart.value = response.body()
-                    _message.value = "Đã xóa sản phẩm"
+                    _message.value = "Da xoa san pham"
                 } else {
-                    _message.value = "Xóa thất bại: ${response.code()}"
+                    _message.value = "Xoa that bai: ${response.code()}"
                 }
             } catch (e: Exception) {
-                _message.value = "Lỗi: ${e.message}"
+                _message.value = "Loi: ${e.message}"
             } finally {
                 _loading.value = false
             }

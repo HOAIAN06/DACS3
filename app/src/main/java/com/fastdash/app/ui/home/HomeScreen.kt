@@ -40,6 +40,7 @@ import com.fastdash.app.data.model.response.CategoryResponse
 import com.fastdash.app.data.model.response.ProductResponse
 import com.fastdash.app.ui.menu.MenuScreen
 import com.fastdash.app.ui.order.OrderHistoryScreen
+import com.fastdash.app.ui.order.OrderHistoryUiModel
 import com.fastdash.app.ui.profile.ProfileScreen
 import com.fastdash.app.utils.CurrencyUtils
 import com.fastdash.app.utils.ImageUtils
@@ -59,6 +60,13 @@ fun HomeScreen(
     onOpenProfile: () -> Unit = {},
     onCheckout: () -> Unit = {},
     onAddToCart: (ProductResponse) -> Unit = onOpenProduct,
+    orders: List<OrderHistoryUiModel> = emptyList(),
+    onOpenOrder: (OrderHistoryUiModel) -> Unit = {},
+    profileFullName: String = "Khach hang FastDash",
+    profileEmail: String = "customer@fastdash.com",
+    profilePhone: String = "0123456789",
+    profileRole: String = "USER",
+    onLogout: () -> Unit = {},
     cartCount: Int = 0,
     cartTotal: Double = 0.0
 ) {
@@ -79,6 +87,17 @@ fun HomeScreen(
     val errorMessage by viewModel.errorMessage.observeAsState()
 
     var selectedTab by remember { mutableStateOf(BottomTab.Home) }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadHomeData()
+    }
+
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearError()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -192,20 +211,20 @@ fun HomeScreen(
                 }
                 BottomTab.Orders -> {
                     OrderHistoryScreen(
-                        orders = emptyList(),
+                        orders = orders,
                         onBack = { selectedTab = BottomTab.Home },
-                        onOpenOrder = { /* TODO */ }
+                        onOpenOrder = onOpenOrder
                     )
                 }
                 BottomTab.Account -> {
                     ProfileScreen(
                         fullName = "Khách hàng FastDash",
-                        email = "customer@fastdash.com",
-                        phone = "0123456789",
-                        role = "CUSTOMER",
+                        email = profileEmail,
+                        phone = profilePhone,
+                        role = profileRole,
                         onBack = { selectedTab = BottomTab.Home },
                         onOpenOrders = { selectedTab = BottomTab.Orders },
-                        onLogout = onOpenProfile
+                        onLogout = onLogout
                     )
                 }
             }

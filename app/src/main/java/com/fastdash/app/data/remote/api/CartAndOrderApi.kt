@@ -1,9 +1,8 @@
 package com.fastdash.app.data.remote.api
 
 import com.fastdash.app.data.model.request.AddToCartRequest
-import com.fastdash.app.data.model.request.CheckoutRequest
+import com.fastdash.app.data.model.request.UpdateCartItemRequest
 import com.fastdash.app.data.model.response.CartResponse
-import com.fastdash.app.data.model.response.OrderResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -23,7 +22,7 @@ interface CartApi {
 	@PUT("api/v1/cart/items/{itemId}")
 	suspend fun updateCartItem(
 		@Path("itemId") itemId: Long,
-		@Body request: AddToCartRequest
+		@Body request: UpdateCartItemRequest
 	): Response<CartResponse>
 
 	@DELETE("api/v1/cart/items/{itemId}")

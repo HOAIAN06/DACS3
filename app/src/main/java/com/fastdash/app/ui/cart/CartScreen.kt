@@ -148,7 +148,7 @@ private fun CartItemCard(
                     color = PrimaryBlack
                 )
                 Text(
-                    "${item.sizeName ?: "Tiêu chuẩn"} x ${item.quantity}",
+                    "${item.resolvedSizeName ?: "Tiêu chuẩn"} x ${item.quantity}",
                     fontSize = 13.sp,
                     color = Color.Gray
                 )
