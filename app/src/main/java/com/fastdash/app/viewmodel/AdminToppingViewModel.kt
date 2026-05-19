@@ -1,15 +1,18 @@
 package com.fastdash.app.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fastdash.app.data.remote.api.AdminToppingResponse
-import com.fastdash.app.data.remote.api.CreateToppingRequest
 import com.fastdash.app.data.repository.AdminToppingRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 
 data class AdminToppingUiState(
@@ -20,10 +23,10 @@ data class AdminToppingUiState(
     val isError: Boolean = false,
     val showAddForm: Boolean = false,
     val editingId: Long? = null,
-    // Form fields
     val nameInput: String = "",
     val priceInput: String = "",
     val imageUrlInput: String = "",
+    val imagePreview: String = "",
     val formLoading: Boolean = false,
     val formMessage: String? = null,
     val formError: Boolean = false
@@ -35,21 +38,29 @@ class AdminToppingViewModel(
 
     private val _uiState = MutableStateFlow(AdminToppingUiState())
     val uiState: StateFlow<AdminToppingUiState> = _uiState.asStateFlow()
+    private var selectedImagePart: MultipartBody.Part? = null
+    private var selectedImageUri: Uri? = null
 
     init {
         loadToppings()
+    }
+
+    private suspend fun fetchToppings(): List<AdminToppingResponse> {
+        val response = repository.getToppings()
+        if (!response.isSuccessful) {
+            throw IllegalStateException(buildApiError("Tai topping", response))
+        }
+        return normalizeToppings(
+            response.body() ?: throw IllegalStateException("Tai topping that bai: body rong")
+        )
     }
 
     fun loadToppings() {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                val response = repository.getToppings()
-                if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Tải topping", response))
-                }
-                val toppings = response.body()
-                    ?: throw IllegalStateException("Tải topping thất bại: BE trả body rỗng")
+                val toppings = fetchToppings()
+
                 _uiState.update {
                     it.copy(
                         toppings = toppings,
@@ -62,7 +73,7 @@ class AdminToppingViewModel(
                 _uiState.update {
                     it.copy(
                         loading = false,
-                        message = "Lỗi tải topping: ${e.message ?: "Không rõ nguyên nhân"}",
+                        message = "Loi tai topping: ${e.message ?: "Khong ro"}",
                         isError = true
                     )
                 }
@@ -86,6 +97,19 @@ class AdminToppingViewModel(
         _uiState.update { it.copy(imageUrlInput = value, formMessage = null, formError = false) }
     }
 
+    fun onImageSelected(uri: Uri, imagePart: MultipartBody.Part) {
+        selectedImageUri = uri
+        selectedImagePart = imagePart
+        _uiState.update {
+            it.copy(
+                imageUrlInput = uri.toString(),
+                imagePreview = uri.toString(),
+                formMessage = null,
+                formError = false
+            )
+        }
+    }
+
     fun showAddForm() {
         _uiState.update {
             it.copy(
@@ -94,10 +118,14 @@ class AdminToppingViewModel(
                 nameInput = "",
                 priceInput = "",
                 imageUrlInput = "",
+                imagePreview = "",
+                formLoading = false,
                 formMessage = null,
                 formError = false
             )
         }
+        selectedImagePart = null
+        selectedImageUri = null
     }
 
     fun showEditForm(topping: AdminToppingResponse) {
@@ -108,10 +136,14 @@ class AdminToppingViewModel(
                 nameInput = topping.name.orEmpty(),
                 priceInput = topping.price.toString(),
                 imageUrlInput = topping.imageUrl.orEmpty(),
+                imagePreview = topping.imageUrl.orEmpty(),
+                formLoading = false,
                 formMessage = null,
                 formError = false
             )
         }
+        selectedImagePart = null
+        selectedImageUri = null
     }
 
     fun closeForm() {
@@ -122,62 +154,81 @@ class AdminToppingViewModel(
                 nameInput = "",
                 priceInput = "",
                 imageUrlInput = "",
+                imagePreview = "",
+                formLoading = false,
                 formMessage = null,
                 formError = false
             )
         }
+        selectedImagePart = null
+        selectedImageUri = null
     }
 
     fun clearMessage() {
         _uiState.update { it.copy(message = null, isError = false) }
     }
 
-    fun clearFormMessage() {
-        _uiState.update { it.copy(formMessage = null, formError = false) }
-    }
-
     fun createTopping() {
         val state = _uiState.value
-        if (state.nameInput.isBlank()) {
-            _uiState.update { it.copy(formMessage = "Tên topping không được để trống", formError = true) }
-            return
-        }
-
+        val name = state.nameInput.trim()
         val price = state.priceInput.toDoubleOrNull()
-        if (price == null || price < 0) {
-            _uiState.update { it.copy(formMessage = "Giá topping không hợp lệ", formError = true) }
-            return
+
+        when {
+            name.isBlank() -> {
+                _uiState.update { it.copy(formMessage = "Ten topping khong duoc de trong", formError = true) }
+                return
+            }
+            hasDuplicateName(name, null) -> {
+                _uiState.update { it.copy(formMessage = "Ten topping da ton tai", formError = true) }
+                return
+            }
+            price == null || price < 0.0 -> {
+                _uiState.update { it.copy(formMessage = "Gia topping khong hop le", formError = true) }
+                return
+            }
+            selectedImagePart == null -> {
+                _uiState.update { it.copy(formMessage = "Vui long chon anh topping", formError = true) }
+                return
+            }
         }
 
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(formLoading = true, formMessage = null, formError = false) }
-                val request = CreateToppingRequest(
-                    name = state.nameInput.trim(),
-                    price = price,
-                    imageUrl = state.imageUrlInput.trim().ifBlank { null }
+                val response = repository.createTopping(
+                    name = name.toFormPart(),
+                    price = price.toString().toFormPart(),
+                    status = "1".toFormPart(),
+                    image = selectedImagePart ?: throw IllegalStateException("Vui long chon anh topping")
                 )
-                val response = repository.createTopping(request)
                 if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Thêm topping", response))
+                    throw IllegalStateException(buildApiError("Them topping", response))
                 }
+                val refreshedToppings = fetchToppings()
+
                 _uiState.update {
                     it.copy(
-                        formLoading = false,
-                        formMessage = "Thêm topping thành công",
-                        formError = false,
+                        toppings = refreshedToppings,
                         showAddForm = false,
+                        editingId = null,
                         nameInput = "",
                         priceInput = "",
-                        imageUrlInput = ""
+                        imageUrlInput = "",
+                        imagePreview = "",
+                        formLoading = false,
+                        formMessage = null,
+                        formError = false,
+                        message = "Them topping thanh cong",
+                        isError = false
                     )
                 }
-                loadToppings()
+                selectedImagePart = null
+                selectedImageUri = null
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         formLoading = false,
-                        formMessage = "Thêm topping lỗi: ${e.message ?: "Không rõ nguyên nhân"}",
+                        formMessage = "Them topping loi: ${e.message ?: "Khong ro"}",
                         formError = true
                     )
                 }
@@ -188,48 +239,63 @@ class AdminToppingViewModel(
     fun updateTopping() {
         val state = _uiState.value
         val toppingId = state.editingId ?: return
-
-        if (state.nameInput.isBlank()) {
-            _uiState.update { it.copy(formMessage = "Tên topping không được để trống", formError = true) }
-            return
-        }
-
+        val name = state.nameInput.trim()
         val price = state.priceInput.toDoubleOrNull()
-        if (price == null || price < 0) {
-            _uiState.update { it.copy(formMessage = "Giá topping không hợp lệ", formError = true) }
-            return
+
+        when {
+            name.isBlank() -> {
+                _uiState.update { it.copy(formMessage = "Ten topping khong duoc de trong", formError = true) }
+                return
+            }
+            hasDuplicateName(name, toppingId) -> {
+                _uiState.update { it.copy(formMessage = "Ten topping da ton tai", formError = true) }
+                return
+            }
+            price == null || price < 0.0 -> {
+                _uiState.update { it.copy(formMessage = "Gia topping khong hop le", formError = true) }
+                return
+            }
         }
 
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(formLoading = true, formMessage = null, formError = false) }
-                val request = CreateToppingRequest(
-                    name = state.nameInput.trim(),
-                    price = price,
-                    imageUrl = state.imageUrlInput.trim().ifBlank { null }
+                val currentStatus = _uiState.value.toppings.firstOrNull { it.id == toppingId }?.status ?: 1
+                val response = repository.updateTopping(
+                    id = toppingId,
+                    name = name.toFormPart(),
+                    price = price.toString().toFormPart(),
+                    status = currentStatus.toString().toFormPart(),
+                    image = selectedImagePart
                 )
-                val response = repository.updateTopping(toppingId, request)
                 if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Cập nhật topping", response))
+                    throw IllegalStateException(buildApiError("Cap nhat topping", response))
                 }
+                val refreshedToppings = fetchToppings()
+
                 _uiState.update {
                     it.copy(
-                        formLoading = false,
-                        formMessage = "Cập nhật topping thành công",
-                        formError = false,
+                        toppings = refreshedToppings,
                         showAddForm = false,
                         editingId = null,
                         nameInput = "",
                         priceInput = "",
-                        imageUrlInput = ""
+                        imageUrlInput = "",
+                        imagePreview = "",
+                        formLoading = false,
+                        formMessage = null,
+                        formError = false,
+                        message = "Cap nhat topping thanh cong",
+                        isError = false
                     )
                 }
-                loadToppings()
+                selectedImagePart = null
+                selectedImageUri = null
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         formLoading = false,
-                        formMessage = "Cập nhật topping lỗi: ${e.message ?: "Không rõ nguyên nhân"}",
+                        formMessage = "Cap nhat topping loi: ${e.message ?: "Khong ro"}",
                         formError = true
                     )
                 }
@@ -243,21 +309,23 @@ class AdminToppingViewModel(
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
                 val response = repository.deleteTopping(toppingId)
                 if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Xóa topping", response))
+                    throw IllegalStateException(buildApiError("Xoa topping", response))
                 }
+                val refreshedToppings = fetchToppings()
+
                 _uiState.update {
                     it.copy(
+                        toppings = refreshedToppings,
                         loading = false,
-                        message = "Xóa topping thành công",
+                        message = "Xoa topping thanh cong",
                         isError = false
                     )
                 }
-                loadToppings()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         loading = false,
-                        message = "Xóa topping lỗi: ${e.message ?: "Không rõ nguyên nhân"}",
+                        message = "Xoa topping loi: ${e.message ?: "Khong ro"}",
                         isError = true
                     )
                 }
@@ -272,21 +340,22 @@ class AdminToppingViewModel(
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
                 val response = repository.updateToppingStatus(toppingId, newStatus)
                 if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Cập nhật trạng thái topping", response))
+                    throw IllegalStateException(buildApiError("Cap nhat trang thai topping", response))
                 }
-                _uiState.update {
-                    it.copy(
+                val refreshedToppings = fetchToppings()
+                _uiState.update { state ->
+                    state.copy(
+                        toppings = refreshedToppings,
                         loading = false,
-                        message = "Cập nhật trạng thái topping thành công",
+                        message = "Cap nhat trang thai topping thanh cong",
                         isError = false
                     )
                 }
-                loadToppings()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         loading = false,
-                        message = "Cập nhật trạng thái topping lỗi: ${e.message ?: "Không rõ nguyên nhân"}",
+                        message = "Cap nhat trang thai topping loi: ${e.message ?: "Khong ro"}",
                         isError = true
                     )
                 }
@@ -294,8 +363,41 @@ class AdminToppingViewModel(
         }
     }
 
+    private fun normalizeToppings(toppings: List<AdminToppingResponse>): List<AdminToppingResponse> {
+        return toppings
+            .filter { it.id > 0L }
+            .distinctBy { it.id }
+            .sortedBy { it.name.orEmpty().trim().lowercase() }
+    }
+
+    private fun hasDuplicateName(name: String, editingId: Long?): Boolean {
+        val normalized = name.trim().lowercase()
+        return _uiState.value.toppings.any { topping ->
+            topping.id != editingId && topping.name.orEmpty().trim().lowercase() == normalized
+        }
+    }
+
     private fun buildApiError(action: String, response: Response<*>): String {
         val serverError = response.errorBody()?.string().orEmpty()
-        return "$action thất bại (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else ""
+        val normalizedServerError = serverError.lowercase()
+        val friendlyError = when {
+            response.code() == 401 -> "Phien dang nhap het han. Vui long dang nhap lai."
+            response.code() == 403 -> "Tai khoan hien tai khong co quyen thao tac admin."
+            response.code() == 409 && normalizedServerError.contains("topping is in use by products") ->
+                "Topping dang duoc gan voi san pham. Khong the xoa."
+            normalizedServerError.contains("violates foreign key constraint") ||
+                normalizedServerError.contains("is still referenced") ->
+                "Topping dang duoc gan voi san pham. Khong the xoa cung, hay chuyen sang an/vo hieu hoa."
+            normalizedServerError.contains("duplicate") ||
+                normalizedServerError.contains("already exists") ||
+                normalizedServerError.contains("unique") ->
+                "Ten topping da ton tai."
+            else -> null
+        }
+
+        return friendlyError
+            ?: ("$action that bai (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else "")
     }
+
+    private fun String.toFormPart() = toRequestBody("text/plain".toMediaType())
 }

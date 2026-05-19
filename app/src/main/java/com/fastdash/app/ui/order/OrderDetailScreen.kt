@@ -8,16 +8,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.fastdash.app.utils.CurrencyUtils
 
 data class OrderItemUiModel(
@@ -37,6 +44,7 @@ data class OrderDetailUiModel(
     val items: List<OrderItemUiModel>
 )
 
+@androidx.compose.material3.ExperimentalMaterial3Api
 @Composable
 fun OrderDetailScreen(
     order: OrderDetailUiModel,
@@ -51,14 +59,14 @@ fun OrderDetailScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        TextButton(onClick = onBack) {
-            Text("<- Quay lai")
-        }
-
-        Text(
-            text = "Chi tiet don ${order.orderCode}",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
+        TopAppBar(
+            title = { Text("Chi tiết đơn ${order.orderCode}", fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
         )
 
         Surface(
@@ -72,9 +80,9 @@ fun OrderDetailScreen(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("Trang thai: ${order.status}")
-                Text("Ngay dat: ${order.createdAt}")
-                Text("Dia chi giao: ${order.deliveryAddress}")
+                Text("Trạng thái: ${order.status}")
+                Text("Ngày đặt: ${order.createdAt}")
+                Text("Địa chỉ giao: ${order.deliveryAddress}")
             }
         }
 
@@ -100,6 +108,7 @@ fun OrderDetailScreen(
                         Column {
                             Text(item.name, fontWeight = FontWeight.Medium)
                             Text("SL: ${item.quantity}")
+                            Text(CurrencyUtils.formatVnd(item.unitPrice), fontSize = 13.sp, color = Color.Gray)
                         }
                         Text(CurrencyUtils.formatVnd(item.quantity * item.unitPrice))
                     }
@@ -116,9 +125,9 @@ fun OrderDetailScreen(
                 modifier = Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text("Tam tinh: ${CurrencyUtils.formatVnd(subtotal)}")
-                Text("Phi giao hang: ${CurrencyUtils.formatVnd(order.shippingFee)}")
-                Text(text = "Tong cong: ${CurrencyUtils.formatVnd(total)}", fontWeight = FontWeight.Bold)
+                Text("Tạm tính: ${CurrencyUtils.formatVnd(subtotal)}")
+                Text("Phí giao hàng: ${CurrencyUtils.formatVnd(order.shippingFee)}")
+                Text(text = "Tổng cộng: ${CurrencyUtils.formatVnd(total)}", fontWeight = FontWeight.Bold)
             }
         }
 
@@ -128,7 +137,7 @@ fun OrderDetailScreen(
                 .fillMaxWidth()
                 .padding(top = 12.dp)
         ) {
-            Text("Dat lai don nay")
+            Text("Đặt lại đơn này")
         }
     }
 }

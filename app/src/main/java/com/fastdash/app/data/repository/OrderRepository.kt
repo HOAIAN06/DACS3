@@ -3,7 +3,9 @@ package com.fastdash.app.data.repository
 import android.content.Context
 import com.fastdash.app.data.model.request.CreateOrderFromCartRequest
 import com.fastdash.app.data.model.request.CreateOrderRequest
+import com.fastdash.app.data.model.request.ShippingFeeQuoteRequest
 import com.fastdash.app.data.model.response.OrderResponse
+import com.fastdash.app.data.model.response.ShippingFeeQuoteResponse
 import com.fastdash.app.data.remote.retrofit.RetrofitClient
 import retrofit2.Response
 import okhttp3.MediaType.Companion.toMediaType
@@ -61,5 +63,15 @@ class OrderRepository(private val context: Context) {
 
 	suspend fun cancelOrder(orderId: Long): Response<OrderResponse> {
 		return RetrofitClient.orderApi(context).cancelOrder(orderId)
+	}
+
+	suspend fun getShippingFeeQuote(branchId: Long, latitude: Double, longitude: Double): Response<ShippingFeeQuoteResponse> {
+		return RetrofitClient.orderApi(context).getShippingFeeQuote(
+			ShippingFeeQuoteRequest(
+				branchId = branchId,
+				latitude = latitude,
+				longitude = longitude
+			)
+		)
 	}
 }

@@ -13,6 +13,8 @@ import com.fastdash.app.data.remote.api.AdminOrderStatusApi
 import com.fastdash.app.data.remote.api.AdminCategoryApi
 import com.fastdash.app.data.remote.api.AdminProductApiExtended
 import com.fastdash.app.data.remote.retrofit.RetrofitClient
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 
 class AdminUserRepository(context: Context) {
     private val api = RetrofitClient.adminUserApi(context)
@@ -45,11 +47,20 @@ class AdminToppingRepository(context: Context) {
     private val api = RetrofitClient.adminToppingApi(context)
 
     suspend fun getToppings() = api.getToppings()
-    suspend fun createTopping(request: com.fastdash.app.data.remote.api.CreateToppingRequest) =
-        api.createTopping(request)
+    suspend fun createTopping(
+        name: RequestBody,
+        price: RequestBody,
+        status: RequestBody,
+        image: MultipartBody.Part
+    ) = api.createTopping(name, price, status, image)
 
-    suspend fun updateTopping(id: Long, request: com.fastdash.app.data.remote.api.CreateToppingRequest) =
-        api.updateTopping(id, request)
+    suspend fun updateTopping(
+        id: Long,
+        name: RequestBody,
+        price: RequestBody,
+        status: RequestBody,
+        image: MultipartBody.Part?
+    ) = api.updateTopping(id, name, price, status, image)
 
     suspend fun deleteTopping(id: Long) = api.deleteTopping(id)
      suspend fun updateToppingStatus(id: Long, status: Int) =
@@ -118,11 +129,20 @@ class AdminCategoryRepository(context: Context) {
      private val api = RetrofitClient.adminCategoryApi(context.applicationContext)
 
      suspend fun getCategories() = api.getCategories()
-     suspend fun createCategory(request: com.fastdash.app.data.remote.api.CreateCategoryRequest) =
-         api.createCategory(request)
+     suspend fun createCategory(
+         name: RequestBody,
+         description: RequestBody,
+         status: RequestBody,
+         image: MultipartBody.Part
+     ) = api.createCategory(name, description, status, image)
 
-     suspend fun updateCategory(id: Long, request: com.fastdash.app.data.remote.api.CreateCategoryRequest) =
-         api.updateCategory(id, request)
+     suspend fun updateCategory(
+         id: Long,
+         name: RequestBody,
+         description: RequestBody,
+         status: RequestBody,
+         image: MultipartBody.Part?
+     ) = api.updateCategory(id, name, description, status, image)
 
      suspend fun deleteCategory(id: Long) = api.deleteCategory(id)
       suspend fun updateCategoryStatus(id: Long, status: Int) =

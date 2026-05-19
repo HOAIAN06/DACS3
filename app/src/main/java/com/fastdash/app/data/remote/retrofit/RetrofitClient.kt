@@ -1,6 +1,7 @@
 package com.fastdash.app.data.remote.retrofit
 
 import android.content.Context
+import android.util.Log
 import com.fastdash.app.data.remote.api.AuthApi
 import com.fastdash.app.data.remote.api.BranchApi
 import com.fastdash.app.data.remote.api.CartApi
@@ -29,11 +30,13 @@ import com.google.gson.GsonBuilder
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
+    private const val TAG = "RetrofitClient"
 
 	@Volatile
 	private var retrofit: Retrofit? = null
 
 	private fun buildRetrofit(context: Context): Retrofit {
+        Log.i(TAG, "Using BASE_URL=${Constants.BASE_URL}")
 		val logging = HttpLoggingInterceptor().apply {
 			level = HttpLoggingInterceptor.Level.BODY
 		}

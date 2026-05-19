@@ -5,12 +5,16 @@ import com.fastdash.app.data.model.response.AdminOrderSummaryResponse
 import com.fastdash.app.data.model.response.AdminPageResponse
 import com.fastdash.app.data.model.response.OrderResponse
 import com.google.gson.annotations.SerializedName
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -19,13 +23,23 @@ interface AdminToppingApi {
     @GET("api/v1/admin/toppings")
     suspend fun getToppings(): Response<List<AdminToppingResponse>>
 
+    @Multipart
     @POST("api/v1/admin/toppings")
-    suspend fun createTopping(@Body request: CreateToppingRequest): Response<AdminToppingResponse>
+    suspend fun createTopping(
+        @Part("name") name: RequestBody,
+        @Part("price") price: RequestBody,
+        @Part("status") status: RequestBody,
+        @Part image: MultipartBody.Part
+    ): Response<AdminToppingResponse>
 
+    @Multipart
     @PUT("api/v1/admin/toppings/{id}")
     suspend fun updateTopping(
         @Path("id") id: Long,
-        @Body request: CreateToppingRequest
+        @Part("name") name: RequestBody,
+        @Part("price") price: RequestBody,
+        @Part("status") status: RequestBody,
+        @Part image: MultipartBody.Part?
     ): Response<AdminToppingResponse>
 
     @DELETE("api/v1/admin/toppings/{id}")
@@ -50,7 +64,9 @@ data class AdminToppingResponse(
 data class CreateToppingRequest(
     val name: String,
     val price: Double,
-    val imageUrl: String? = null
+    @SerializedName("imageUrl")
+    val imageUrl: String? = null,
+    val status: Int = 1
 )
 
 interface AdminSizeApi {
@@ -154,13 +170,23 @@ interface AdminCategoryApi {
      @GET("api/v1/admin/categories")
      suspend fun getCategories(): Response<List<AdminCategoryResponse>>
 
+     @Multipart
      @POST("api/v1/admin/categories")
-     suspend fun createCategory(@Body request: CreateCategoryRequest): Response<AdminCategoryResponse>
+     suspend fun createCategory(
+         @Part("name") name: RequestBody,
+         @Part("description") description: RequestBody,
+         @Part("status") status: RequestBody,
+         @Part image: MultipartBody.Part
+     ): Response<AdminCategoryResponse>
 
+     @Multipart
      @PUT("api/v1/admin/categories/{id}")
      suspend fun updateCategory(
          @Path("id") id: Long,
-         @Body request: CreateCategoryRequest
+         @Part("name") name: RequestBody,
+         @Part("description") description: RequestBody,
+         @Part("status") status: RequestBody,
+         @Part image: MultipartBody.Part?
      ): Response<AdminCategoryResponse>
 
      @DELETE("api/v1/admin/categories/{id}")
@@ -177,13 +203,15 @@ data class AdminCategoryResponse(
      val id: Long,
      val name: String? = null,
      val description: String? = null,
+     @SerializedName(value = "imageUrl", alternate = ["image_url", "url", "secure_url"]) val imageUrl: String? = null,
      val status: Int,
      val createdAt: String? = null
 )
 
 data class CreateCategoryRequest(
      val name: String,
-     val description: String? = null
+     val description: String? = null,
+     val status: Int = 1
 )
 
 interface AdminProductApiExtended {
@@ -223,6 +251,7 @@ interface AdminProductApiExtended {
 
 data class AdminProductResponse(
      val id: Long,
+     @SerializedName(value = "categoryId", alternate = ["category_id"])
      val categoryId: Long,
      val name: String? = null,
      val description: String? = null,

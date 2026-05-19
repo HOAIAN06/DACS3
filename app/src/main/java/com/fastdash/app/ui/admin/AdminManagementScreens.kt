@@ -1,19 +1,34 @@
 package com.fastdash.app.ui.admin
 
+import android.content.Context
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.CloudUpload
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -23,6 +38,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import coil.compose.AsyncImage
 import com.fastdash.app.R
 import com.fastdash.app.data.model.response.CategoryResponse
 import com.fastdash.app.data.model.response.OrderResponse
@@ -30,17 +47,32 @@ import com.fastdash.app.data.repository.CategoryRepository
 import com.fastdash.app.data.repository.OrderRepository
 import com.fastdash.app.data.repository.AdminOrderStatusRepository
 import com.fastdash.app.utils.CurrencyUtils
+import com.fastdash.app.utils.ImageUtils
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
-private val AdminRed = Color(0xFFE31837)
+private val PizzaHutRed = Color(0xFFC8102E)
+private val DeepCrust = Color(0xFF24130F)
+private val CharcoalSauce = Color(0xFF3A1E18)
+private val PrimaryBlack = Color(0xFF1C1C1C)
+private val LightBackground = Color(0xFFF6EFE7)
+private val SurfaceWhite = Color.White
+private val SuccessGreen = Color(0xFF27AE60)
+private val WarningGold = Color(0xFFFFB81C)
 private val AdminBlue = Color(0xFF0078AE)
-private val AdminBackground = Color(0xFFF8F5F2)
-private val AdminCard = Color.White
-private val AdminText = Color(0xFF202124)
-private val AdminMuted = Color(0xFF7A7A7A)
-private val AdminSuccess = Color(0xFF1E8E3E)
-private val AdminWarning = Color(0xFFF29900)
 private val AdminDanger = Color(0xFFB3261E)
+private val WarmCream = Color(0xFFFFF6EE)
+private val AdminMuted = Color(0xFF7A7A7A)
+
+// Compatibility Aliases for Redesign
+private val AdminBackground = LightBackground
+private val AdminWarning = WarningGold
+private val AdminSuccess = SuccessGreen
+private val AdminRed = PizzaHutRed
+private val AdminCard = SurfaceWhite
+private val AdminText = PrimaryBlack
 
 @Composable
 fun AdminComingSoonScreen(
@@ -175,172 +207,206 @@ fun AdminCategoriesScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AdminBackground)
-            .verticalScroll(rememberScrollState())
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        AdminTopBar(
-            title = "Quản lý danh mục",
-            subtitle = "Xem, thêm, sửa, xóa danh mục món ăn",
-            onBack = onBack,
-            onLogout = onLogout,
-            accentColor = AdminRed
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = viewModel::onSearchQueryChanged,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp),
-                singleLine = true,
-                placeholder = { Text("Tìm danh mục") }
+    Scaffold(
+        topBar = {
+            AdminTopBar(
+                title = "Quản lý danh mục",
+                subtitle = "Quản lý nhóm món ăn của FastDash",
+                onBack = onBack,
+                onLogout = onLogout,
+                accentColor = PizzaHutRed
             )
-            Button(
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
                 onClick = { viewModel.showAddForm() },
-                modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AdminRed)
-            ) {
-                Text("+ Thêm", fontWeight = FontWeight.Bold)
-            }
-        }
-
-        if (uiState.loading) {
-            Box(
+                containerColor = PizzaHutRed,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(16.dp),
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("THÊM DANH MỤC", fontWeight = FontWeight.Bold) }
+            )
+        },
+        containerColor = LightBackground
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+        ) {
+            // Search and Metrics
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp),
-                contentAlignment = Alignment.Center
+                    .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(SurfaceWhite, WarmCream)
+                        )
+                    )
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                CircularProgressIndicator(color = AdminRed)
-            }
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AdminMetricCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Tổng danh mục",
-                    value = uiState.categories.size.toString(),
-                    accentColor = AdminRed
-                )
-                AdminMetricCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Hiển thị",
-                    value = visibleCategories.size.toString(),
-                    accentColor = AdminBlue
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AdminMetricCard(
+                        modifier = Modifier.weight(1f),
+                        title = "TỔNG SỐ",
+                        value = uiState.categories.size.toString(),
+                        accentColor = PizzaHutRed
+                    )
+                    AdminMetricCard(
+                        modifier = Modifier.weight(1f),
+                        title = "ĐANG HIỆN",
+                        value = uiState.categories.count { it.status == 1 }.toString(),
+                        accentColor = AdminBlue
+                    )
+                }
+
+                OutlinedTextField(
+                    value = uiState.searchQuery,
+                    onValueChange = viewModel::onSearchQueryChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Tìm kiếm danh mục...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PizzaHutRed) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PizzaHutRed,
+                        unfocusedBorderColor = Color.LightGray
+                    ),
+                    singleLine = true
                 )
             }
 
-            if (uiState.isError && uiState.message != null) {
-                AdminInfoCard(
-                    title = "Lỗi tải dữ liệu",
-                    subtitle = uiState.message!!,
-                    accentColor = AdminWarning
-                )
+            if (uiState.loading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = PizzaHutRed)
             }
 
-            if (visibleCategories.isEmpty()) {
-                AdminInfoCard(
-                    title = "Không có kết quả",
-                    subtitle = "Không tìm thấy danh mục phù hợp.",
-                    accentColor = AdminMuted
-                )
-            } else {
-                visibleCategories.forEach { category ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = AdminCard),
-                        shape = RoundedCornerShape(20.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = category.name.orEmpty().ifBlank { "(Không tên)" },
-                                        color = AdminText,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 15.sp
-                                    )
-                                    Text(
-                                        text = category.description.orEmpty().ifBlank { "Chưa có mô tả" },
-                                        color = AdminMuted,
-                                        fontSize = 12.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(999.dp),
-                                    color = (if (category.status == 1) AdminSuccess else AdminMuted).copy(alpha = 0.12f)
-                                ) {
-                                    Text(
-                                        text = if (category.status == 1) "Hiển thị" else "Ẩn",
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                        fontSize = 10.sp,
-                                        color = if (category.status == 1) AdminSuccess else AdminMuted,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Button(
-                                    onClick = { viewModel.showEditForm(category) },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(36.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AdminBlue),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Sửa", fontSize = 12.sp)
-                                }
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            viewModel.toggleCategoryStatus(category.id, category.status)
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(36.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (category.status == 1) AdminWarning else AdminSuccess
-                                    ),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text(if (category.status == 1) "Ẩn" else "Hiện", fontSize = 12.sp)
-                                }
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            viewModel.deleteCategory(category.id)
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(36.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AdminDanger),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Text("Xóa", fontSize = 12.sp)
-                                }
-                            }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (!uiState.loading && visibleCategories.isEmpty()) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                            Text("Không có danh mục nào phù hợp", color = AdminMuted)
                         }
                     }
+                }
+
+                items(visibleCategories) { category ->
+                    AdminCategoryItem(
+                        category = category,
+                        onEdit = { viewModel.showEditForm(category) },
+                        onToggleStatus = { viewModel.toggleCategoryStatus(category.id, category.status) },
+                        onDelete = { viewModel.deleteCategory(category.id) }
+                    )
+                }
+
+                item { Spacer(Modifier.height(80.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminCategoryItem(
+    category: com.fastdash.app.data.remote.api.AdminCategoryResponse,
+    onEdit: () -> Unit,
+    onToggleStatus: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box {
+                if (!category.imageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = ImageUtils.buildImageRequest(LocalContext.current, category.imageUrl),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(70.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(70.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFF0F0F0)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Category, contentDescription = null, tint = AdminMuted, modifier = Modifier.size(28.dp))
+                    }
+                }
+                if (category.status == 0) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("ẨN", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    }
+                }
+            }
+
+            Spacer(Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = category.name.orEmpty().ifBlank { "(Không tên)" },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = PrimaryBlack,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = category.description.orEmpty().ifBlank { "Chưa có mô tả" },
+                    color = AdminMuted,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                Spacer(Modifier.height(4.dp))
+                
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = (if (category.status == 1) SuccessGreen else AdminMuted).copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        text = if (category.status == 1) "Đang hiển thị" else "Đang ẩn",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        fontSize = 10.sp,
+                        color = if (category.status == 1) SuccessGreen else AdminMuted,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = AdminBlue)
+                }
+                IconButton(onClick = onToggleStatus, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        if (category.status == 1) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = "Status",
+                        tint = if (category.status == 1) WarningGold else AdminMuted
+                    )
+                }
+                IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Outlined.Delete, contentDescription = "Delete", tint = AdminDanger.copy(alpha = 0.6f))
                 }
             }
         }
@@ -354,33 +420,68 @@ private fun AdminCategoryFormDialog(
     isEditing: Boolean,
     onClose: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))
-            .clickable(enabled = !uiState.formLoading) { onClose() },
-        contentAlignment = Alignment.Center
-    ) {
+    val context = LocalContext.current
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.onImageSelected(it, uriToMultipart(context, it)) }
+    }
+
+    Dialog(onDismissRequest = onClose) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .clickable(enabled = false) {}
-                .padding(20.dp),
+                .fillMaxWidth()
+                .padding(vertical = 20.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = AdminCard)
+            colors = CardDefaults.cardColors(containerColor = SurfaceWhite)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(20.dp)
+                    .padding(24.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Text(
-                    text = if (isEditing) "Sửa danh mục" else "Thêm danh mục",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = AdminText,
-                    fontWeight = FontWeight.ExtraBold
+                    text = if (isEditing) "CẬP NHẬT DANH MỤC" else "THÊM DANH MỤC MỚI",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = PizzaHutRed,
+                    fontWeight = FontWeight.Black
                 )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Ảnh danh mục", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AdminMuted)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFF2F2F2))
+                            .clickable(enabled = !uiState.formLoading) { imagePicker.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (uiState.imagePreview.isNotBlank()) {
+                            AsyncImage(
+                                model = if (uiState.imagePreview.startsWith("content://")) uiState.imagePreview else ImageUtils.buildImageRequest(context, uiState.imagePreview),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(12.dp)
+                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                    .padding(8.dp)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(40.dp), tint = PizzaHutRed)
+                                Spacer(Modifier.height(8.dp))
+                                Text("Tải ảnh lên", fontWeight = FontWeight.Bold, color = PizzaHutRed)
+                            }
+                        }
+                    }
+                }
 
                 OutlinedTextField(
                     value = uiState.nameInput,
@@ -388,7 +489,8 @@ private fun AdminCategoryFormDialog(
                     label = { Text("Tên danh mục *") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    enabled = !uiState.formLoading
+                    enabled = !uiState.formLoading,
+                    shape = RoundedCornerShape(12.dp)
                 )
 
                 OutlinedTextField(
@@ -398,20 +500,22 @@ private fun AdminCategoryFormDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(100.dp),
-                    enabled = !uiState.formLoading
+                    enabled = !uiState.formLoading,
+                    shape = RoundedCornerShape(12.dp)
                 )
 
                 if (uiState.formMessage != null) {
                     Surface(
-                        color = if (uiState.formError) AdminDanger.copy(alpha = 0.1f) else AdminSuccess.copy(alpha = 0.1f),
+                        color = if (uiState.formError) AdminDanger.copy(alpha = 0.1f) else SuccessGreen.copy(alpha = 0.1f),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             text = uiState.formMessage!!,
                             modifier = Modifier.padding(12.dp),
-                            color = if (uiState.formError) AdminDanger else AdminSuccess,
-                            fontSize = 12.sp
+                            color = if (uiState.formError) AdminDanger else SuccessGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -420,24 +524,30 @@ private fun AdminCategoryFormDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Button(
+                    OutlinedButton(
                         onClick = onClose,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(48.dp),
                         enabled = !uiState.formLoading,
-                        colors = ButtonDefaults.buttonColors(containerColor = AdminMuted)
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
                     ) {
-                        Text("Hủy")
+                        Text("HỦY", color = AdminMuted)
                     }
 
                     Button(
                         onClick = {
                             if (isEditing) viewModel.updateCategory() else viewModel.createCategory()
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).height(48.dp),
                         enabled = uiState.nameInput.isNotBlank() && !uiState.formLoading,
-                        colors = ButtonDefaults.buttonColors(containerColor = AdminBlue)
+                        colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(if (uiState.formLoading) "Đang xử lý..." else (if (isEditing) "Cập nhật" else "Thêm"))
+                        if (uiState.formLoading) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                        } else {
+                            Text(if (isEditing) "CẬP NHẬT" else "THÊM MỚI", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -500,16 +610,16 @@ fun AdminOrdersScreen(
     }
 
     val statusOptions = remember(orders) {
-        listOf("ALL") + orders.map { it.status.trim().uppercase() }.distinct().sorted()
+        listOf("ALL") + orders.map { it.status.orEmpty().trim().uppercase() }.distinct().sorted()
     }
 
     val visibleOrders = remember(orders, selectedStatus) {
-        if (selectedStatus == "ALL") orders else orders.filter { it.status.trim().uppercase() == selectedStatus }
+        if (selectedStatus == "ALL") orders else orders.filter { it.status.orEmpty().trim().uppercase() == selectedStatus }
     }
 
     val revenue = remember(orders) { orders.sumOf { it.totalAmount } }
-    val pendingOrders = remember(orders) { orders.count { it.status.isPendingStatus() } }
-    val completedOrders = remember(orders) { orders.count { it.status.isCompletedStatus() } }
+    val pendingOrders = remember(orders) { orders.count { it.status.orEmpty().isPendingStatus() } }
+    val completedOrders = remember(orders) { orders.count { it.status.orEmpty().isCompletedStatus() } }
 
     Column(
         modifier = Modifier
@@ -638,12 +748,12 @@ fun AdminOrdersScreen(
                                         fontSize = 15.sp
                                     )
                                     Text(
-                                        text = order.createdAt,
+                                        text = order.createdAt ?: "Chưa có thời gian",
                                         color = AdminMuted,
                                         fontSize = 12.sp
                                     )
                                 }
-                                StatusBadge(status = order.status)
+                                StatusBadge(status = order.status ?: "PENDING")
                             }
 
                             Text(
@@ -775,6 +885,8 @@ fun AdminOrdersScreen(
     }
 }
 
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AdminTopBar(
     title: String,
@@ -783,60 +895,71 @@ private fun AdminTopBar(
     onLogout: () -> Unit,
     accentColor: Color
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = AdminCard),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        color = AdminText,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 18.sp
+    TopAppBar(
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = "ADMIN COMMAND CENTER",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    color = WarmCream.copy(alpha = 0.8f)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Image(
+                        painter = painterResource(id = R.drawable.logo2),
+                        contentDescription = "FastDash",
+                        modifier = Modifier.height(28.dp)
                     )
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = subtitle,
-                        color = AdminMuted,
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
+                        text = title.uppercase(),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 18.sp,
+                        color = Color.White
                     )
                 }
-                Image(
-                    painter = painterResource(id = R.drawable.logo2),
-                    contentDescription = null,
-                    modifier = Modifier.height(24.dp),
-                    contentScale = ContentScale.Fit
-                )
             }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                TextButton(onClick = onBack) { Text("Quay lại") }
-                TextButton(onClick = onLogout) { Text("Đăng xuất") }
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
             }
-        }
-    }
+        },
+        actions = {
+            IconButton(onClick = onLogout) {
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout", tint = WarmCream)
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+        modifier = Modifier.background(
+            Brush.horizontalGradient(
+                colors = listOf(PrimaryBlack, DeepCrust, accentColor)
+            )
+        )
+    )
 }
 
 @Composable
 private fun AdminInfoCard(title: String, subtitle: String, accentColor: Color) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = AdminCard),
-        shape = RoundedCornerShape(22.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(accentColor.copy(alpha = 0.08f), SurfaceWhite)
+                    )
+                )
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = accentColor.copy(alpha = 0.1f)
+                color = accentColor.copy(alpha = 0.12f)
             ) {
                 Text(
                     text = title,
@@ -848,7 +971,7 @@ private fun AdminInfoCard(title: String, subtitle: String, accentColor: Color) {
             }
             Text(
                 text = subtitle,
-                color = AdminText,
+                color = PrimaryBlack,
                 fontSize = 13.sp,
                 lineHeight = 18.sp
             )
@@ -863,36 +986,18 @@ private fun AdminMetricCard(
     value: String,
     accentColor: Color
 ) {
-    Card(
+    Surface(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = AdminCard),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(16.dp),
+        color = accentColor.copy(alpha = 0.05f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accentColor.copy(alpha = 0.1f))
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = accentColor.copy(alpha = 0.1f)
-            ) {
-                Text(
-                    title,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    color = accentColor,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                )
-            }
-            Text(
-                text = value,
-                color = AdminText,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Text(title, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = accentColor)
+            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Black, color = PrimaryBlack)
         }
     }
 }
@@ -909,17 +1014,18 @@ private fun StatusBadge(status: String) {
     }
     Surface(
         shape = RoundedCornerShape(999.dp),
-        color = color.copy(alpha = 0.12f)
+        color = color.copy(alpha = 0.14f)
     ) {
         Text(
             text = normalized,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
             color = color,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
     }
 }
+
 
 private fun String.isPendingStatus(): Boolean {
     val normalized = trim().uppercase()
@@ -1436,17 +1542,15 @@ private fun AdminToppingFormDialog(
     isEditing: Boolean,
     onClose: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))
-            .clickable(enabled = !uiState.formLoading) { onClose() },
-        contentAlignment = Alignment.Center
-    ) {
+    val context = LocalContext.current
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.onImageSelected(it, uriToMultipart(context, it)) }
+    }
+
+    Dialog(onDismissRequest = onClose) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .clickable(enabled = false) {}
+                .fillMaxWidth()
                 .padding(20.dp),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = AdminCard)
@@ -1483,14 +1587,25 @@ private fun AdminToppingFormDialog(
                     enabled = !uiState.formLoading
                 )
 
-                OutlinedTextField(
-                    value = uiState.imageUrlInput,
-                    onValueChange = viewModel::onImageUrlChanged,
-                    label = { Text("URL ảnh topping (tuỳ chọn)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    enabled = !uiState.formLoading
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .background(Color(0xFFF2F2F2), RoundedCornerShape(16.dp))
+                        .clickable(enabled = !uiState.formLoading) { imagePicker.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (uiState.imagePreview.isNotBlank()) {
+                        AsyncImage(
+                            model = if (uiState.imagePreview.startsWith("content://")) uiState.imagePreview else ImageUtils.buildImageRequest(context, uiState.imagePreview),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Text("Chon anh topping", color = AdminMuted)
+                    }
+                }
 
                 if (uiState.formMessage != null) {
                     Surface(
@@ -1543,3 +1658,19 @@ private fun AdminToppingFormDialog(
 
 
 
+private fun uriToMultipart(
+    context: Context,
+    uri: Uri
+): MultipartBody.Part {
+    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
+    val mimeType = context.contentResolver.getType(uri) ?: "image/*"
+    val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+    val fileExtension = when (mimeType.lowercase()) {
+        "image/png" -> "png"
+        "image/webp" -> "webp"
+        "image/jpeg", "image/jpg" -> "jpg"
+        else -> "jpg"
+    }
+    val fileName = "admin_image.$fileExtension"
+    return MultipartBody.Part.createFormData(name = "image", filename = fileName, body = requestBody)
+}

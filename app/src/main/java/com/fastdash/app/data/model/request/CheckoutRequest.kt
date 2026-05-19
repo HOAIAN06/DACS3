@@ -1,25 +1,53 @@
 package com.fastdash.app.data.model.request
 
+import com.google.gson.annotations.SerializedName
+
 data class AddToCartRequest(
-	val productId: Long,
-	val productSizeId: Long? = null,
-	val toppingIds: List<Long> = emptyList(),
-	val quantity: Int,
-	val note: String? = null
+    @SerializedName("productId")
+    val productId: Long,
+    @SerializedName("productSizeId")
+    val productSizeId: Long? = null,
+    @SerializedName("toppingIds")
+    val toppingIds: List<Long> = emptyList(),
+    @SerializedName("quantity")
+    val quantity: Int,
+    @SerializedName("note")
+    val note: String? = null
 )
 
 data class CheckoutRequest(
-	val branchId: Long,
-	val deliveryType: String = "DELIVERY",
-	val receiverName: String,
-	val receiverPhone: String,
-	val deliveryAddress: String,
-	val note: String? = null,
-	val paymentMethod: String = "COD"
+    @SerializedName("branchId")
+    val branchId: Long,
+    @SerializedName("deliveryType")
+    val deliveryType: String = "DELIVERY",
+    @SerializedName("receiverName")
+    val receiverName: String,
+    @SerializedName("receiverPhone")
+    val receiverPhone: String,
+    @SerializedName("deliveryAddress")
+    val deliveryAddress: String,
+    @SerializedName("deliveryLatitude")
+    val deliveryLatitude: Double? = null,
+    @SerializedName("deliveryLongitude")
+    val deliveryLongitude: Double? = null,
+    @SerializedName("note")
+    val note: String? = null,
+    @SerializedName("paymentMethod")
+    val paymentMethod: String = "COD"
 )
 
 data class UpdateCartItemRequest(
-	val quantity: Int,
-	val note: String? = null
+    @SerializedName("quantity")
+    val quantity: Int,
+    @SerializedName("note")
+    val note: String? = null
 )
 
+data class ShippingFeeQuoteRequest(
+    @SerializedName("branchId")
+    val branchId: Long,
+    @SerializedName("latitude")
+    val latitude: Double,
+    @SerializedName("longitude")
+    val longitude: Double
+)

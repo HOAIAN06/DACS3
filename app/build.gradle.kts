@@ -18,6 +18,10 @@ val configuredBaseUrl = (localProperties.getProperty("fastdash.baseUrl")
     ?: defaultBaseUrl)
     .trim()
     .let { if (it.endsWith("/")) it else "$it/" }
+val configuredGoogleClientId = (localProperties.getProperty("fastdash.googleClientId")
+    ?: providers.gradleProperty("fastdash.googleClientId").orNull
+    ?: "")
+    .trim()
 
 android {
     namespace = "com.fastdash.app"
@@ -34,6 +38,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BASE_URL", "\"$configuredBaseUrl\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$configuredGoogleClientId\"")
     }
 
     buildTypes {
@@ -75,6 +80,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.play.services.auth)
+    implementation(libs.play.services.location)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

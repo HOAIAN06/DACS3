@@ -1,15 +1,18 @@
 package com.fastdash.app.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fastdash.app.data.remote.api.AdminCategoryResponse
-import com.fastdash.app.data.remote.api.CreateCategoryRequest
 import com.fastdash.app.data.repository.AdminCategoryRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 
 data class AdminCategoryUiState(
@@ -20,9 +23,9 @@ data class AdminCategoryUiState(
     val isError: Boolean = false,
     val showAddForm: Boolean = false,
     val editingId: Long? = null,
-    // Form fields
     val nameInput: String = "",
     val descriptionInput: String = "",
+    val imagePreview: String = "",
     val formLoading: Boolean = false,
     val formMessage: String? = null,
     val formError: Boolean = false
@@ -34,21 +37,29 @@ class AdminCategoryViewModel(
 
     private val _uiState = MutableStateFlow(AdminCategoryUiState())
     val uiState: StateFlow<AdminCategoryUiState> = _uiState.asStateFlow()
+    private var selectedImagePart: MultipartBody.Part? = null
+    private var selectedImageUri: Uri? = null
 
     init {
         loadCategories()
+    }
+
+    private suspend fun fetchCategories(): List<AdminCategoryResponse> {
+        val response = repository.getCategories()
+        if (!response.isSuccessful) {
+            throw IllegalStateException(buildApiError("Tai danh muc", response))
+        }
+        return normalizeCategories(
+            response.body() ?: throw IllegalStateException("Tai danh muc that bai: body rong")
+        )
     }
 
     fun loadCategories() {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                val response = repository.getCategories()
-                if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Tải danh mục", response))
-                }
-                val categories = response.body()
-                    ?: throw IllegalStateException("Tải danh mục thất bại: BE trả body rỗng")
+                val categories = fetchCategories()
+
                 _uiState.update {
                     it.copy(
                         categories = categories,
@@ -61,7 +72,7 @@ class AdminCategoryViewModel(
                 _uiState.update {
                     it.copy(
                         loading = false,
-                        message = "Lỗi tải danh mục: ${e.message ?: "Không rõ nguyên nhân"}",
+                        message = "Loi tai danh muc: ${e.message ?: "Khong ro"}",
                         isError = true
                     )
                 }
@@ -88,10 +99,14 @@ class AdminCategoryViewModel(
                 editingId = null,
                 nameInput = "",
                 descriptionInput = "",
+                imagePreview = "",
+                formLoading = false,
                 formMessage = null,
                 formError = false
             )
         }
+        selectedImagePart = null
+        selectedImageUri = null
     }
 
     fun showEditForm(category: AdminCategoryResponse) {
@@ -101,10 +116,14 @@ class AdminCategoryViewModel(
                 editingId = category.id,
                 nameInput = category.name.orEmpty(),
                 descriptionInput = category.description.orEmpty(),
+                imagePreview = category.imageUrl.orEmpty(),
+                formLoading = false,
                 formMessage = null,
                 formError = false
             )
         }
+        selectedImagePart = null
+        selectedImageUri = null
     }
 
     fun closeForm() {
@@ -114,54 +133,88 @@ class AdminCategoryViewModel(
                 editingId = null,
                 nameInput = "",
                 descriptionInput = "",
+                imagePreview = "",
+                formLoading = false,
                 formMessage = null,
                 formError = false
             )
         }
+        selectedImagePart = null
+        selectedImageUri = null
     }
 
     fun clearMessage() {
         _uiState.update { it.copy(message = null, isError = false) }
     }
 
-    fun clearFormMessage() {
-        _uiState.update { it.copy(formMessage = null, formError = false) }
+    fun onImageSelected(uri: Uri, imagePart: MultipartBody.Part) {
+        selectedImageUri = uri
+        selectedImagePart = imagePart
+        _uiState.update {
+            it.copy(
+                imagePreview = uri.toString(),
+                formMessage = null,
+                formError = false
+            )
+        }
     }
 
     fun createCategory() {
         val state = _uiState.value
-        if (state.nameInput.isBlank()) {
-            _uiState.update { it.copy(formMessage = "Tên danh mục không được để trống", formError = true) }
-            return
+        val name = state.nameInput.trim()
+        val description = state.descriptionInput.trim()
+
+        when {
+            name.isBlank() -> {
+                _uiState.update { it.copy(formMessage = "Ten danh muc khong duoc de trong", formError = true) }
+                return
+            }
+            hasDuplicateName(name, null) -> {
+                _uiState.update { it.copy(formMessage = "Ten danh muc da ton tai", formError = true) }
+                return
+            }
+            selectedImagePart == null -> {
+                _uiState.update { it.copy(formMessage = "Vui long chon anh danh muc", formError = true) }
+                return
+            }
         }
 
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(formLoading = true, formMessage = null, formError = false) }
-                val request = CreateCategoryRequest(
-                    name = state.nameInput.trim(),
-                    description = state.descriptionInput.trim().ifBlank { null }
+                val response = repository.createCategory(
+                    name = name.toFormPart(),
+                    description = description.toFormPart(),
+                    status = "1".toFormPart(),
+                    image = selectedImagePart ?: throw IllegalStateException("Vui long chon anh danh muc")
                 )
-                val response = repository.createCategory(request)
                 if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Thêm danh mục", response))
+                    throw IllegalStateException(buildApiError("Them danh muc", response))
                 }
+                val refreshedCategories = fetchCategories()
+
                 _uiState.update {
                     it.copy(
-                        formLoading = false,
-                        formMessage = "Thêm danh mục thành công",
-                        formError = false,
+                        categories = refreshedCategories,
                         showAddForm = false,
+                        editingId = null,
                         nameInput = "",
-                        descriptionInput = ""
+                        descriptionInput = "",
+                        imagePreview = "",
+                        formLoading = false,
+                        formMessage = null,
+                        formError = false,
+                        message = "Them danh muc thanh cong",
+                        isError = false
                     )
                 }
-                loadCategories()
+                selectedImagePart = null
+                selectedImageUri = null
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         formLoading = false,
-                        formMessage = "Thêm danh mục lỗi: ${e.message ?: "Không rõ nguyên nhân"}",
+                        formMessage = "Them danh muc loi: ${e.message ?: "Khong ro"}",
                         formError = true
                     )
                 }
@@ -172,40 +225,58 @@ class AdminCategoryViewModel(
     fun updateCategory() {
         val state = _uiState.value
         val categoryId = state.editingId ?: return
+        val name = state.nameInput.trim()
+        val description = state.descriptionInput.trim()
 
-        if (state.nameInput.isBlank()) {
-            _uiState.update { it.copy(formMessage = "Tên danh mục không được để trống", formError = true) }
-            return
+        when {
+            name.isBlank() -> {
+                _uiState.update { it.copy(formMessage = "Ten danh muc khong duoc de trong", formError = true) }
+                return
+            }
+            hasDuplicateName(name, categoryId) -> {
+                _uiState.update { it.copy(formMessage = "Ten danh muc da ton tai", formError = true) }
+                return
+            }
         }
 
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(formLoading = true, formMessage = null, formError = false) }
-                val request = CreateCategoryRequest(
-                    name = state.nameInput.trim(),
-                    description = state.descriptionInput.trim().ifBlank { null }
+                val currentStatus = _uiState.value.categories.firstOrNull { it.id == categoryId }?.status ?: 1
+                val response = repository.updateCategory(
+                    id = categoryId,
+                    name = name.toFormPart(),
+                    description = description.toFormPart(),
+                    status = currentStatus.toString().toFormPart(),
+                    image = selectedImagePart
                 )
-                val response = repository.updateCategory(categoryId, request)
                 if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Cập nhật danh mục", response))
+                    throw IllegalStateException(buildApiError("Cap nhat danh muc", response))
                 }
+                val refreshedCategories = fetchCategories()
+
                 _uiState.update {
                     it.copy(
-                        formLoading = false,
-                        formMessage = "Cập nhật danh mục thành công",
-                        formError = false,
+                        categories = refreshedCategories,
                         showAddForm = false,
                         editingId = null,
                         nameInput = "",
-                        descriptionInput = ""
+                        descriptionInput = "",
+                        imagePreview = "",
+                        formLoading = false,
+                        formMessage = null,
+                        formError = false,
+                        message = "Cap nhat danh muc thanh cong",
+                        isError = false
                     )
                 }
-                loadCategories()
+                selectedImagePart = null
+                selectedImageUri = null
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         formLoading = false,
-                        formMessage = "Cập nhật danh mục lỗi: ${e.message ?: "Không rõ nguyên nhân"}",
+                        formMessage = "Cap nhat danh muc loi: ${e.message ?: "Khong ro"}",
                         formError = true
                     )
                 }
@@ -219,21 +290,23 @@ class AdminCategoryViewModel(
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
                 val response = repository.deleteCategory(categoryId)
                 if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Xóa danh mục", response))
+                    throw IllegalStateException(buildApiError("Xoa danh muc", response))
                 }
+                val refreshedCategories = fetchCategories()
+
                 _uiState.update {
                     it.copy(
+                        categories = refreshedCategories,
                         loading = false,
-                        message = "Xóa danh mục thành công",
+                        message = "Xoa danh muc thanh cong",
                         isError = false
                     )
                 }
-                loadCategories()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         loading = false,
-                        message = "Xóa danh mục lỗi: ${e.message ?: "Không rõ nguyên nhân"}",
+                        message = "Xoa danh muc loi: ${e.message ?: "Khong ro"}",
                         isError = true
                     )
                 }
@@ -248,21 +321,22 @@ class AdminCategoryViewModel(
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
                 val response = repository.updateCategoryStatus(categoryId, newStatus)
                 if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Cập nhật trạng thái danh mục", response))
+                    throw IllegalStateException(buildApiError("Cap nhat trang thai danh muc", response))
                 }
-                _uiState.update {
-                    it.copy(
+                val refreshedCategories = fetchCategories()
+                _uiState.update { state ->
+                    state.copy(
+                        categories = refreshedCategories,
                         loading = false,
-                        message = "Cập nhật trạng thái thành công",
+                        message = "Cap nhat trang thai thanh cong",
                         isError = false
                     )
                 }
-                loadCategories()
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
                         loading = false,
-                        message = "Cập nhật trạng thái lỗi: ${e.message ?: "Không rõ nguyên nhân"}",
+                        message = "Cap nhat trang thai loi: ${e.message ?: "Khong ro"}",
                         isError = true
                     )
                 }
@@ -270,8 +344,41 @@ class AdminCategoryViewModel(
         }
     }
 
+    private fun normalizeCategories(categories: List<AdminCategoryResponse>): List<AdminCategoryResponse> {
+        return categories
+            .filter { it.id > 0L }
+            .distinctBy { it.id }
+            .sortedBy { it.name.orEmpty().trim().lowercase() }
+    }
+
+    private fun hasDuplicateName(name: String, editingId: Long?): Boolean {
+        val normalized = name.trim().lowercase()
+        return _uiState.value.categories.any { category ->
+            category.id != editingId && category.name.orEmpty().trim().lowercase() == normalized
+        }
+    }
+
     private fun buildApiError(action: String, response: Response<*>): String {
         val serverError = response.errorBody()?.string().orEmpty()
-        return "$action thất bại (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else ""
+        val normalizedServerError = serverError.lowercase()
+        val friendlyError = when {
+            response.code() == 401 -> "Phien dang nhap het han. Vui long dang nhap lai."
+            response.code() == 403 -> "Tai khoan hien tai khong co quyen thao tac admin."
+            response.code() == 409 && normalizedServerError.contains("category is in use by products") ->
+                "Danh muc dang duoc gan voi san pham. Khong the xoa."
+            normalizedServerError.contains("violates foreign key constraint") ||
+                normalizedServerError.contains("is still referenced") ->
+                "Danh muc dang duoc gan voi du lieu khac. Khong the xoa cung, hay chuyen sang an/vo hieu hoa."
+            normalizedServerError.contains("duplicate") ||
+                normalizedServerError.contains("already exists") ||
+                normalizedServerError.contains("unique") ->
+                "Ten danh muc da ton tai."
+            else -> null
+        }
+
+        return friendlyError
+            ?: ("$action that bai (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else "")
     }
+
+    private fun String.toFormPart() = toRequestBody("text/plain".toMediaType())
 }

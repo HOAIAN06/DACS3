@@ -1,13 +1,12 @@
 package com.fastdash.app.viewmodel
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.fastdash.app.data.model.request.AdminProductRequest
 import com.fastdash.app.data.remote.api.AdminCategoryResponse
 import com.fastdash.app.data.remote.api.AdminProductResponse
 import com.fastdash.app.data.remote.api.AdminToppingResponse
 import com.fastdash.app.data.remote.api.CreateSizeRequest
-import com.fastdash.app.data.remote.api.UpdateProductRequest
 import com.fastdash.app.data.repository.AdminCategoryRepository
 import com.fastdash.app.data.repository.AdminProductRepository
 import com.fastdash.app.data.repository.AdminSizeRepository
@@ -18,7 +17,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 
 data class ProductSizeInput(
@@ -28,11 +29,13 @@ data class ProductSizeInput(
 
 data class AdminProductUiState(
     val categoryIdInput: String = "",
+    val categoryNameHint: String = "",
     val name: String = "",
     val description: String = "",
     val basePriceInput: String = "",
     val manualBasePriceInput: String = "",
-    val imageUrl: String = "",
+    val imagePreview: String = "",
+    val currentImageUrl: String = "",
     val hasSizes: Boolean = false,
     val sizes: List<ProductSizeInput> = emptyList(),
     val selectedToppingIds: Set<Long> = emptySet(),
@@ -43,13 +46,14 @@ data class AdminProductUiState(
     val isError: Boolean = false,
     val showAddForm: Boolean = false,
     val editingProductId: Long? = null,
+    val status: Int = 1,
     val currentStep: Int = 1
 ) {
     private val manualBasePriceValue = manualBasePriceInput.toDoubleOrNull()
 
     val canSubmit: Boolean
         get() = !loading &&
-            (imageUrl.isNotBlank() || editingProductId != null) &&
+            imagePreview.isNotBlank() &&
             name.isNotBlank() &&
             description.isNotBlank() &&
             categoryIdInput.toLongOrNull() != null &&
@@ -65,7 +69,7 @@ data class AdminProductUiState(
 
     val canGoNext: Boolean
         get() = when (currentStep) {
-            1 -> imageUrl.isNotBlank() && name.isNotBlank() && description.isNotBlank()
+            1 -> imagePreview.isNotBlank() && name.isNotBlank() && description.isNotBlank()
             2 -> categoryIdInput.toLongOrNull() != null
             3 -> true
             else -> false
@@ -82,6 +86,8 @@ class AdminProductViewModel(
 
     private val _uiState = MutableStateFlow(AdminProductUiState())
     val uiState: StateFlow<AdminProductUiState> = _uiState.asStateFlow()
+    private var selectedImagePart: MultipartBody.Part? = null
+    private var selectedImageUri: Uri? = null
 
     init {
         loadFormData()
@@ -93,6 +99,24 @@ class AdminProductViewModel(
             .minOrNull()
             ?.toString()
             .orEmpty()
+    }
+
+    private fun normalizeCategoryId(
+        categories: List<AdminCategoryResponse>,
+        categoryIdInput: String,
+        categoryNameHint: String
+    ): String {
+        val trimmedId = categoryIdInput.trim()
+        if (trimmedId.isNotBlank() && categories.any { category -> category.id.toString() == trimmedId }) {
+            return trimmedId
+        }
+
+        val normalizedHint = categoryNameHint.trim()
+        if (normalizedHint.isBlank()) return trimmedId
+
+        return categories.firstOrNull { category ->
+            category.name.orEmpty().trim().equals(normalizedHint, ignoreCase = true)
+        }?.id?.toString().orEmpty()
     }
 
     fun loadFormData() {
@@ -109,9 +133,19 @@ class AdminProductViewModel(
                 }
 
                 _uiState.update {
+                    val fetchedCategories = categoriesResponse.body().orEmpty()
+                        .filter { category -> category.id > 0L }
+                        .distinctBy { category -> category.id }
+                    val normalizedCategoryId = normalizeCategoryId(
+                        categories = fetchedCategories,
+                        categoryIdInput = it.categoryIdInput,
+                        categoryNameHint = it.categoryNameHint
+                    )
+
                     it.copy(
                         categories = categoriesResponse.body().orEmpty().filter { category -> category.id > 0L }.distinctBy { category -> category.id },
-                        allToppingsList = toppingsResponse.body().orEmpty().filter { topping -> topping.id > 0L }.distinctBy { topping -> topping.id }
+                        allToppingsList = toppingsResponse.body().orEmpty().filter { topping -> topping.id > 0L }.distinctBy { topping -> topping.id },
+                        categoryIdInput = normalizedCategoryId
                     )
                 }
             } catch (e: Exception) {
@@ -136,24 +170,31 @@ class AdminProductViewModel(
     }
 
     fun showEditForm(product: AdminProductResponse) {
+        val initialCategoryId = product.categoryId.takeIf { it > 0L }?.toString().orEmpty()
+
         _uiState.update {
             it.copy(
                 showAddForm = true,
                 editingProductId = product.id,
-                categoryIdInput = product.categoryId.toString(),
+                categoryIdInput = initialCategoryId,
+                categoryNameHint = "",
                 name = product.name.orEmpty(),
                 description = product.description.orEmpty(),
                 basePriceInput = product.basePrice.toString(),
                 manualBasePriceInput = product.basePrice.toString(),
-                imageUrl = product.imageUrl.orEmpty(),
+                imagePreview = product.imageUrl.orEmpty(),
+                currentImageUrl = product.imageUrl.orEmpty(),
                 hasSizes = false,
                 sizes = emptyList(),
                 selectedToppingIds = emptySet(),
+                status = product.status,
                 currentStep = 1,
                 message = null,
                 isError = false
             )
         }
+        selectedImagePart = null
+        selectedImageUri = null
 
         loadFormData()
 
@@ -184,7 +225,11 @@ class AdminProductViewModel(
                 }
 
                 _uiState.update { state ->
-                    val resolvedCategoryId = detail?.categoryId ?: product.categoryId
+                    val resolvedCategoryId = listOf(
+                        detail?.categoryId,
+                        product.categoryId,
+                        state.categoryIdInput.toLongOrNull()
+                    ).firstOrNull { categoryId -> categoryId != null && categoryId > 0L }
                     val resolvedName = detail?.name?.takeIf { it.isNotBlank() } ?: product.name.orEmpty()
                     val resolvedDescription = detail?.description?.takeIf { it.isNotBlank() } ?: product.description.orEmpty()
                     val resolvedImageUrl = detail?.imageUrl?.takeIf { it.isNotBlank() } ?: product.imageUrl.orEmpty()
@@ -192,10 +237,16 @@ class AdminProductViewModel(
                     val hasSizes = mappedSizes.isNotEmpty()
 
                     state.copy(
-                        categoryIdInput = resolvedCategoryId.toString(),
+                        categoryIdInput = normalizeCategoryId(
+                            categories = state.categories,
+                            categoryIdInput = resolvedCategoryId?.toString().orEmpty(),
+                            categoryNameHint = detail?.categoryName.orEmpty()
+                        ),
+                        categoryNameHint = detail?.categoryName.orEmpty(),
                         name = resolvedName,
                         description = resolvedDescription,
-                        imageUrl = resolvedImageUrl,
+                        imagePreview = selectedImageUri?.toString().orEmpty().ifBlank { resolvedImageUrl },
+                        currentImageUrl = resolvedImageUrl,
                         manualBasePriceInput = resolvedBasePrice.toString(),
                         basePriceInput = if (hasSizes) mappedSizes.deriveBasePriceInput() else resolvedBasePrice.toString(),
                         hasSizes = hasSizes,
@@ -215,19 +266,24 @@ class AdminProductViewModel(
                 showAddForm = false,
                 editingProductId = null,
                 categoryIdInput = "",
+                categoryNameHint = "",
                 name = "",
                 description = "",
                 basePriceInput = "",
                 manualBasePriceInput = "",
-                imageUrl = "",
+                imagePreview = "",
+                currentImageUrl = "",
                 hasSizes = false,
                 sizes = emptyList(),
                 selectedToppingIds = emptySet(),
+                status = 1,
                 currentStep = 1,
                 message = null,
                 isError = false
             )
         }
+        selectedImagePart = null
+        selectedImageUri = null
     }
 
     fun nextStep() {
@@ -408,37 +464,15 @@ class AdminProductViewModel(
         }
     }
 
-    fun uploadImage(file: MultipartBody.Part) {
-        viewModelScope.launch {
-            try {
-                _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                val response = repository.uploadImage(file)
-                if (!response.isSuccessful) {
-                    throw IllegalStateException(buildApiError("Upload anh", response))
-                }
-
-                val url = response.body()?.resolvedImageUrl.orEmpty()
-                if (url.isBlank()) {
-                    throw IllegalStateException("Upload thanh cong nhung backend chua tra ve imageUrl")
-                }
-
-                _uiState.update {
-                    it.copy(
-                        imageUrl = url,
-                        loading = false,
-                        message = "Upload anh thanh cong",
-                        isError = false
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        loading = false,
-                        message = "Upload loi: ${e.message}",
-                        isError = true
-                    )
-                }
-            }
+    fun onImageSelected(uri: Uri, imagePart: MultipartBody.Part) {
+        selectedImageUri = uri
+        selectedImagePart = imagePart
+        _uiState.update {
+            it.copy(
+                imagePreview = uri.toString(),
+                message = null,
+                isError = false
+            )
         }
     }
 
@@ -466,17 +500,18 @@ class AdminProductViewModel(
         return try {
             _uiState.update { it.copy(loading = true, message = null, isError = false) }
 
-            val productRequest = AdminProductRequest(
-                categoryId = categoryId,
-                name = state.name.trim(),
-                description = state.description.trim(),
-                basePrice = resolvedBasePrice!!,
-                imageUrl = state.imageUrl,
-                isCustomizable = if (state.hasSizes || state.selectedToppingIds.isNotEmpty()) 1 else 0,
-                status = 1
+            val imagePart = selectedImagePart
+                ?: throw IllegalStateException("Vui long chon anh cho san pham")
+            val isCustomizable = if (state.hasSizes || state.selectedToppingIds.isNotEmpty()) 1 else 0
+            val createProductResponse = repository.createProduct(
+                name = state.name.trim().toFormPart(),
+                description = state.description.trim().toFormPart(),
+                basePrice = resolvedBasePrice!!.toString().toFormPart(),
+                categoryId = categoryId.toString().toFormPart(),
+                isCustomizable = isCustomizable.toString().toFormPart(),
+                status = state.status.toString().toFormPart(),
+                image = imagePart
             )
-
-            val createProductResponse = repository.createProduct(productRequest)
             if (!createProductResponse.isSuccessful) {
                 throw IllegalStateException(buildApiError("Tao san pham", createProductResponse))
             }
@@ -501,12 +536,16 @@ class AdminProductViewModel(
                     description = "",
                     basePriceInput = "",
                     manualBasePriceInput = "",
-                    imageUrl = "",
+                    imagePreview = "",
+                    currentImageUrl = "",
                     hasSizes = false,
                     sizes = emptyList(),
-                    selectedToppingIds = emptySet()
+                    selectedToppingIds = emptySet(),
+                    status = 1
                 )
             }
+            selectedImagePart = null
+            selectedImageUri = null
             true
         } catch (e: Exception) {
             if (createdProductId != null) {
@@ -550,16 +589,17 @@ class AdminProductViewModel(
         return try {
             _uiState.update { it.copy(loading = true, message = null, isError = false) }
 
-            val updateRequest = UpdateProductRequest(
-                categoryId = categoryId,
-                name = state.name.trim(),
-                description = state.description.trim(),
-                basePrice = resolvedBasePrice!!,
-                imageUrl = state.imageUrl.ifBlank { "default-image-url" },
-                isCustomizable = if (state.hasSizes || state.selectedToppingIds.isNotEmpty()) 1 else 0
+            val isCustomizable = if (state.hasSizes || state.selectedToppingIds.isNotEmpty()) 1 else 0
+            val updateProductResponse = repository.updateProduct(
+                id = productId,
+                name = state.name.trim().toFormPart(),
+                description = state.description.trim().toFormPart(),
+                basePrice = resolvedBasePrice!!.toString().toFormPart(),
+                categoryId = categoryId.toString().toFormPart(),
+                isCustomizable = isCustomizable.toString().toFormPart(),
+                status = state.status.toString().toFormPart(),
+                image = selectedImagePart
             )
-
-            val updateProductResponse = repository.updateProduct(productId, updateRequest)
             if (!updateProductResponse.isSuccessful) {
                 throw IllegalStateException(buildApiError("Cap nhat san pham", updateProductResponse))
             }
@@ -579,6 +619,8 @@ class AdminProductViewModel(
                     currentStep = 1
                 )
             }
+            selectedImagePart = null
+            selectedImageUri = null
             resetFormData()
             true
         } catch (e: Exception) {
@@ -689,4 +731,6 @@ class AdminProductViewModel(
         val serverError = response.errorBody()?.string().orEmpty()
         return "$action that bai (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else ""
     }
+
+    private fun String.toFormPart() = toRequestBody("text/plain".toMediaType())
 }

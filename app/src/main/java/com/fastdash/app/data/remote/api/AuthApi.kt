@@ -1,6 +1,6 @@
 package com.fastdash.app.data.remote.api
 
-
+import com.fastdash.app.data.model.request.GoogleLoginRequest
 import com.fastdash.app.data.model.request.LoginRequest
 import com.fastdash.app.data.model.request.RegisterRequest
 import com.fastdash.app.data.model.response.LoginResponse
@@ -20,4 +20,9 @@ interface AuthApi {
 	suspend fun register(
 		@Body request: RegisterRequest
 	): Response<RegisterResponse>
+
+	@POST("api/v1/auth/google")
+	suspend fun googleLogin(
+		@Body request: GoogleLoginRequest
+	): Response<LoginResponse>
 }

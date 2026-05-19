@@ -9,6 +9,6 @@ data class ProductResponse(
     @SerializedName(value = "basePrice", alternate = ["base_price"]) val basePrice: Double,
     @SerializedName(value = "imageUrl", alternate = ["image_url", "url", "secure_url"]) val imageUrl: String?,
     val isCustomizable: Int,
-    val categoryId: Long,
-    val categoryName: String
+    @SerializedName(value = "categoryId", alternate = ["category_id"]) val categoryId: Long,
+    @SerializedName(value = "categoryName", alternate = ["category_name"]) val categoryName: String
 )

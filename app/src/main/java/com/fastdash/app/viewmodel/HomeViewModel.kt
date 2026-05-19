@@ -24,6 +24,9 @@ class HomeViewModel(
     private val _products = MutableLiveData<List<ProductResponse>>(emptyList())
     val products: LiveData<List<ProductResponse>> = _products
 
+    private val _selectedCategoryId = MutableLiveData<Long?>(null)
+    val selectedCategoryId: LiveData<Long?> = _selectedCategoryId
+
     private val _loading = MutableLiveData(false)
     val loading: LiveData<Boolean> = _loading
 
@@ -32,7 +35,9 @@ class HomeViewModel(
 
     fun loadHomeData() {
         loadCategories()
-        loadProducts()
+        if (_products.value.isNullOrEmpty()) {
+            loadProducts(_selectedCategoryId.value)
+        }
     }
 
     fun loadCategories() {
@@ -54,6 +59,7 @@ class HomeViewModel(
     fun loadProducts(categoryId: Long? = null) {
         viewModelScope.launch {
             _loading.value = true
+            _selectedCategoryId.value = categoryId
             try {
                 val response = productRepository.getProducts(categoryId)
                 if (response.isSuccessful) {
@@ -69,6 +75,12 @@ class HomeViewModel(
             } finally {
                 _loading.value = false
             }
+        }
+    }
+
+    fun selectCategory(categoryId: Long?) {
+        if (_selectedCategoryId.value != categoryId || _products.value.isNullOrEmpty()) {
+            loadProducts(categoryId)
         }
     }
 

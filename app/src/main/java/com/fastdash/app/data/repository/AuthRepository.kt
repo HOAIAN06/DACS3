@@ -1,6 +1,7 @@
 package com.fastdash.app.data.repository
 
 import android.content.Context
+import com.fastdash.app.data.model.request.GoogleLoginRequest
 import com.fastdash.app.data.model.request.LoginRequest
 import com.fastdash.app.data.model.request.RegisterRequest
 import com.fastdash.app.data.model.response.LoginResponse
@@ -29,6 +30,12 @@ class AuthRepository(private val context: Context) {
 				phone = phone.trim(),
 				password = password
 			)
+		)
+	}
+
+	suspend fun googleLogin(idToken: String): Response<LoginResponse> {
+		return RetrofitClient.authApi(context).googleLogin(
+			GoogleLoginRequest(idToken.trim())
 		)
 	}
 }

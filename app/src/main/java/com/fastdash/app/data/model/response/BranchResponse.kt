@@ -5,6 +5,8 @@ data class BranchResponse(
     val name: String,
     val address: String,
     val phone: String,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val openTime: String? = null,
     val closeTime: String? = null,
     val status: Int = 1,

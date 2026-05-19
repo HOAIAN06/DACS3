@@ -57,10 +57,11 @@ import kotlinx.coroutines.launch
 private val PizzaHutRed = Color(0xFFC8102E)
 private val DarkRed = Color(0xFF8B0000)
 private val PrimaryBlack = Color(0xFF1C1C1C)
-private val LightBackground = Color(0xFFF8F8F8)
+private val LightBackground = Color(0xFFF6EFE7)
 private val SurfaceWhite = Color.White
 private val AdminMuted = Color(0xFF7A7A7A)
 private val AdminBlue = Color(0xFF0078AE)
+private val AdminCream = Color(0xFFFFF6EE)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,27 +127,35 @@ fun AdminProductScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(id = R.drawable.logo2),
-                            contentDescription = "FastDash",
-                            modifier = Modifier.height(28.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("PRODUCTS", fontWeight = FontWeight.Black, fontSize = 16.sp, color = PizzaHutRed)
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("PRODUCT COMMAND", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = AdminCream.copy(alpha = 0.8f))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(id = R.drawable.logo2),
+                                contentDescription = "FastDash",
+                                modifier = Modifier.height(28.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("PRODUCTS", fontWeight = FontWeight.Black, fontSize = 18.sp, color = Color.White)
+                        }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
                 actions = {
                     IconButton(onClick = onLogout) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout", tint = AdminMuted)
+                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout", tint = AdminCream)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceWhite)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
+                modifier = Modifier.background(
+                    Brush.horizontalGradient(
+                        colors = listOf(PrimaryBlack, DarkRed, PizzaHutRed)
+                    )
+                )
             )
         },
         floatingActionButton = {
@@ -170,7 +179,12 @@ fun AdminProductScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(SurfaceWhite)
+                    .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(SurfaceWhite, AdminCream)
+                        )
+                    )
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -269,7 +283,7 @@ private fun AddProductWizard(
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             val part = uriToMultipart(context, it)
-            viewModel.uploadImage(part)
+            viewModel.onImageSelected(it, part)
         }
     }
 
@@ -425,9 +439,13 @@ private fun StepBasicInfo(uiState: AdminProductUiState, viewModel: AdminProductV
                 .clickable { onPickImage() },
             contentAlignment = Alignment.Center
         ) {
-            if (uiState.imageUrl.isNotEmpty()) {
+            if (uiState.imagePreview.isNotEmpty()) {
                 AsyncImage(
-                    model = ImageUtils.buildImageRequest(LocalContext.current, uiState.imageUrl),
+                    model = if (uiState.imagePreview.startsWith("content://")) {
+                        uiState.imagePreview
+                    } else {
+                        ImageUtils.buildImageRequest(LocalContext.current, uiState.imagePreview)
+                    },
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -547,7 +565,7 @@ private fun StepConfiguration(uiState: AdminProductUiState, viewModel: AdminProd
                     Column(modifier = Modifier.weight(1f)) {
                         Text("MÓN CÓ NHIỀU SIZE", fontWeight = FontWeight.Bold, color = PrimaryBlack, fontSize = 13.sp)
                         Text(
-                            if (uiState.hasSizes) "Đang dùng giá theo từng size" else "Đang dùng giá mặc định từ bước 1",
+                            if (uiState.hasSizes) "Đang dùng giá theo từng size" else "Đang dùng một giá bán chung",
                             fontSize = 12.sp,
                             color = AdminMuted
                         )
@@ -813,6 +831,14 @@ private fun uriToMultipart(
     uri: Uri
 ): MultipartBody.Part {
     val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: ByteArray(0)
-    val requestBody = bytes.toRequestBody("image/*".toMediaTypeOrNull())
-    return MultipartBody.Part.createFormData(name = "file", filename = "product_image.jpg", body = requestBody)
+    val mimeType = context.contentResolver.getType(uri) ?: "image/*"
+    val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+    val fileExtension = when (mimeType.lowercase()) {
+        "image/png" -> "png"
+        "image/webp" -> "webp"
+        "image/jpeg", "image/jpg" -> "jpg"
+        else -> "jpg"
+    }
+    val fileName = "product_image.$fileExtension"
+    return MultipartBody.Part.createFormData(name = "image", filename = fileName, body = requestBody)
 }

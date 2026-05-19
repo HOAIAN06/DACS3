@@ -58,7 +58,7 @@ fun OrderHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Lich Su Don Hang", fontWeight = FontWeight.ExtraBold) },
+                title = { Text("Lịch sử đơn hàng", fontWeight = FontWeight.ExtraBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -124,7 +124,7 @@ private fun OrderCard(order: OrderHistoryUiModel, onClick: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
             Text(text = order.createdAt, fontSize = 14.sp, color = Color.Gray)
-            Text(text = "${order.itemCount} mon", fontSize = 14.sp, color = Color.Gray)
+            Text(text = "${order.itemCount} món", fontSize = 14.sp, color = Color.Gray)
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -137,7 +137,7 @@ private fun OrderCard(order: OrderHistoryUiModel, onClick: () -> Unit) {
                     fontSize = 16.sp,
                     color = PizzaHutRed
                 )
-                Text("Xem chi tiet >", color = PizzaHutRed, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Xem chi tiết >", color = PizzaHutRed, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -150,8 +150,8 @@ private fun EmptyOrdersState(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Ban chua co don hang nao", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        Text("Thuc hien don hang dau tien ngay thoi!", color = Color.Gray, fontSize = 14.sp)
+        Text("Bạn chưa có đơn hàng nào", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text("Thực hiện đơn hàng đầu tiên ngay thôi!", color = Color.Gray, fontSize = 14.sp)
     }
 }
 

@@ -1,14 +1,40 @@
 package com.fastdash.app.ui.auth
 
+import android.app.Activity
 import android.util.Patterns
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,12 +48,15 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
 import com.fastdash.app.R
+import com.fastdash.app.utils.Constants
 import com.fastdash.app.utils.TokenManager
 import com.fastdash.app.viewmodel.LoginViewModel
 import com.fastdash.app.viewmodel.LoginViewModelFactory
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 
 private val PizzaHutRed = Color(0xFFC8102E)
-private val LightGrey = Color(0xFFF4F4F4)
 
 @Composable
 fun LoginScreen(
@@ -52,15 +81,45 @@ fun LoginScreen(
     val loginResult by viewModel.loginResult.observeAsState()
     val errorMessage by viewModel.errorMessage.observeAsState()
     val loading by viewModel.loading.observeAsState(false)
-    
+
     val emailValid = email.isBlank() || Patterns.EMAIL_ADDRESS.matcher(email.trim()).matches()
     val passwordValid = password.isBlank() || password.length >= 6
     val canSubmit = !loading && email.isNotBlank() && password.isNotBlank() && emailValid && passwordValid
 
+    val googleSignInClient = remember {
+        GoogleSignIn.getClient(
+            context,
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestEmail()
+                .requestIdToken(Constants.GOOGLE_CLIENT_ID)
+                .build()
+        )
+    }
+
+    val googleLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            val idToken = account.idToken
+            if (idToken.isNullOrBlank()) {
+                Toast.makeText(context, "Không lấy được Google idToken", Toast.LENGTH_SHORT).show()
+            } else {
+                viewModel.googleLogin(idToken)
+            }
+        } catch (e: ApiException) {
+            Toast.makeText(context, "Google Sign-In thất bại: ${e.statusCode}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     LaunchedEffect(loginResult) {
         loginResult?.let { result ->
+            tokenManager.saveUserId(result.id)
             tokenManager.saveToken(result.token)
             tokenManager.saveRole(result.role)
+            tokenManager.saveFullName(result.fullName)
+            tokenManager.saveEmail(result.email)
+            tokenManager.savePhone(result.phone)
             Toast.makeText(context, "Chào mừng quay trở lại!", Toast.LENGTH_SHORT).show()
             viewModel.consumeLoginResult()
             onLoginSuccess()
@@ -90,13 +149,13 @@ fun LoginScreen(
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "Chào Mừng Bạn!",
+            text = "Chào mừng bạn!",
             fontSize = 28.sp,
             fontWeight = FontWeight.ExtraBold,
             color = Color.Black
         )
         Text(
-            text = "Đăng nhập để đặt Pizza nóng hổi ngay",
+            text = "Đăng nhập để đặt món nóng hổi ngay",
             fontSize = 14.sp,
             color = Color.Gray
         )
@@ -111,7 +170,10 @@ fun LoginScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PizzaHutRed, focusedLabelColor = PizzaHutRed)
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PizzaHutRed,
+                focusedLabelColor = PizzaHutRed
+            )
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -125,14 +187,19 @@ fun LoginScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PizzaHutRed, focusedLabelColor = PizzaHutRed)
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PizzaHutRed,
+                focusedLabelColor = PizzaHutRed
+            )
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Button(
             onClick = { viewModel.login(email.trim(), password.trim()) },
-            modifier = Modifier.fillMaxWidth().height(52.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
             enabled = canSubmit,
             colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
             shape = RoundedCornerShape(12.dp)
@@ -142,6 +209,51 @@ fun LoginScreen(
             } else {
                 Text("ĐĂNG NHẬP", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
+            Text(
+                text = "HOẶC",
+                modifier = Modifier.padding(horizontal = 12.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.Gray
+            )
+            HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        Button(
+            onClick = {
+                if (loading) return@Button
+                if (Constants.GOOGLE_CLIENT_ID.isBlank()) {
+                    Toast.makeText(context, "Thiếu fastdash.googleClientId", Toast.LENGTH_SHORT).show()
+                } else {
+                    googleSignInClient.signOut().addOnCompleteListener {
+                        googleLauncher.launch(googleSignInClient.signInIntent)
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Surface(
+                color = Color(0xFFF1F3F4),
+                shape = RoundedCornerShape(999.dp),
+                modifier = Modifier.size(28.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(Modifier.size(12.dp))
+            Text("Đăng nhập bằng Google", color = Color.Black, fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(Modifier.height(16.dp))

@@ -4,7 +4,19 @@ import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -14,10 +26,41 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Assignment
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalPizza
+import androidx.compose.material.icons.filled.Moped
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LocalPizza
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.ShoppingBag
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,13 +99,11 @@ private val TextGrey = Color(0xFF757575)
 @Composable
 fun HomeScreen(
     onOpenProduct: (ProductResponse) -> Unit = {},
-    onOpenOrders: () -> Unit = {},
-    onOpenProfile: () -> Unit = {},
     onCheckout: () -> Unit = {},
     onAddToCart: (ProductResponse) -> Unit = onOpenProduct,
     orders: List<OrderHistoryUiModel> = emptyList(),
     onOpenOrder: (OrderHistoryUiModel) -> Unit = {},
-    profileFullName: String = "Khach hang FastDash",
+    profileFullName: String = "Khách hàng FastDash",
     profileEmail: String = "customer@fastdash.com",
     profilePhone: String = "0123456789",
     profileRole: String = "USER",
@@ -125,7 +166,9 @@ fun HomeScreen(
         Box(modifier = Modifier.padding(innerPadding)) {
             if (loading && selectedTab == BottomTab.Home) {
                 LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter),
                     color = PizzaHutRed
                 )
             }
@@ -153,16 +196,23 @@ fun HomeScreen(
                             }
                         }
                         item {
-                            SectionHeaderRow(title = "Menu", actionText = "Xem thêm", onActionClick = { selectedTab = BottomTab.Menu })
+                            SectionHeaderRow(
+                                title = "Menu",
+                                actionText = "Xem thêm",
+                                onActionClick = { selectedTab = BottomTab.Menu }
+                            )
                             LazyRow(
                                 contentPadding = PaddingValues(horizontal = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 items(categories) { category ->
-                                    MenuCategoryCard(category = category, onClick = { 
-                                        selectedTab = BottomTab.Menu
-                                        viewModel.loadProducts(category.id)
-                                    })
+                                    MenuCategoryCard(
+                                        category = category,
+                                        onClick = {
+                                            viewModel.selectCategory(category.id)
+                                            selectedTab = BottomTab.Menu
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -177,13 +227,13 @@ fun HomeScreen(
                             ActionMenuItem(
                                 icon = Icons.Outlined.LocationOn,
                                 title = "Cửa hàng của chúng tôi",
-                                onClick = { /* TODO */ }
+                                onClick = {}
                             )
                         }
                         item {
                             Spacer(Modifier.height(24.dp))
                             Text(
-                                "Kết nối với Pizza Hut",
+                                "Kết nối với FastDash",
                                 modifier = Modifier.padding(horizontal = 16.dp),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
@@ -193,22 +243,24 @@ fun HomeScreen(
                                 icon = Icons.Outlined.Phone,
                                 title = "Cần trợ giúp?",
                                 subtitle = "Gọi 1900 1822",
-                                onClick = { /* TODO */ }
+                                onClick = {}
                             )
                             ActionMenuItem(
                                 icon = Icons.Outlined.Description,
-                                title = "Điều khoản và Điều kiện",
-                                onClick = { /* TODO */ }
+                                title = "Điều khoản và điều kiện",
+                                onClick = {}
                             )
                         }
                     }
                 }
+
                 BottomTab.Menu -> {
                     MenuScreen(
                         onOpenProduct = onOpenProduct,
                         onAddToCart = onAddToCart
                     )
                 }
+
                 BottomTab.Orders -> {
                     OrderHistoryScreen(
                         orders = orders,
@@ -216,9 +268,10 @@ fun HomeScreen(
                         onOpenOrder = onOpenOrder
                     )
                 }
+
                 BottomTab.Account -> {
                     ProfileScreen(
-                        fullName = "Khách hàng FastDash",
+                        fullName = profileFullName,
                         email = profileEmail,
                         phone = profilePhone,
                         role = profileRole,
@@ -258,9 +311,11 @@ private fun HomeTopBar(cartCount: Int, onCartClick: () -> Unit) {
                 modifier = Modifier.padding(end = 12.dp)
             ) {
                 Icon(
-                    Icons.Outlined.Notifications,
-                    contentDescription = "Notifications",
-                    modifier = Modifier.size(28.dp).clickable { onCartClick() }
+                    Icons.Filled.ShoppingCart,
+                    contentDescription = "Cart",
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clickable { onCartClick() }
                 )
             }
         },
@@ -270,7 +325,6 @@ private fun HomeTopBar(cartCount: Int, onCartClick: () -> Unit) {
 
 @Composable
 private fun PromotionPager() {
-    // Simplified version of the banner in the image
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -279,29 +333,40 @@ private fun PromotionPager() {
             .clip(RoundedCornerShape(12.dp))
             .background(PizzaHutRed)
     ) {
-        // Here you would put the background image of the promotion
         Row(modifier = Modifier.fillMaxSize()) {
             Column(
-                modifier = Modifier.weight(1f).padding(16.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.Center
             ) {
                 Surface(color = Color.Black.copy(alpha = 0.2f), shape = RoundedCornerShape(4.dp)) {
-                    Text("Combo", color = Color.White, modifier = Modifier.padding(horizontal = 6.dp), fontSize = 10.sp)
+                    Text(
+                        "Combo",
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 6.dp),
+                        fontSize = 10.sp
+                    )
                 }
-                Text("Đại Sứ Ăn Ngon", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Đại sứ ăn ngon", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(8.dp))
                 Text("Chỉ từ", color = Color.White, fontSize = 12.sp)
                 Text("249.000 VNĐ", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
-            // Image placeholder
-            Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                Text("🍕🥤", fontSize = 60.sp)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Pizza combo", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
-        
-        // Pager indicator simulation
+
         Row(
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             repeat(3) { index ->
@@ -320,10 +385,10 @@ private fun PromotionPager() {
 private fun WelcomeAddressSection() {
     Column(modifier = Modifier.padding(16.dp)) {
         Text("Chào mừng bạn trở lại", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Text("Vui lòng chọn Giao hàng hoặc Mua mang về để đặt hàng", fontSize = 13.sp, color = TextGrey)
-        
+        Text("Vui lòng chọn giao hàng hoặc mua mang về để đặt hàng", fontSize = 13.sp, color = TextGrey)
+
         Spacer(Modifier.height(12.dp))
-        
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -378,13 +443,15 @@ private fun RecommendedProductCard(
             AsyncImage(
                 model = ImageUtils.buildImageRequest(LocalContext.current, product.imageUrl),
                 contentDescription = null,
-                modifier = Modifier.size(100.dp).clip(RoundedCornerShape(8.dp)),
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(8.dp)),
                 contentScale = ContentScale.Crop
             )
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(product.name, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text("🍃", fontSize = 10.sp) // Leaf icon simulation
+                Text("Món nổi bật", fontSize = 10.sp, color = TextGrey)
                 Spacer(Modifier.height(8.dp))
                 Text("Chỉ từ", fontSize = 11.sp, color = TextGrey)
                 Row(
@@ -400,7 +467,9 @@ private fun RecommendedProductCard(
                     )
                     IconButton(
                         onClick = onAddToCart,
-                        modifier = Modifier.size(28.dp).background(PizzaHutRed, CircleShape)
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(PizzaHutRed, CircleShape)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                     }
@@ -413,20 +482,31 @@ private fun RecommendedProductCard(
 @Composable
 private fun MenuCategoryCard(category: CategoryResponse, onClick: () -> Unit) {
     Column(
-        modifier = Modifier.width(120.dp).clickable { onClick() }
+        modifier = Modifier
+            .width(120.dp)
+            .clickable { onClick() }
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth().height(120.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
-                // Background image simulation
-                Box(modifier = Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f)))
-                ))
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f))
+                            )
+                        )
+                )
                 Text(
                     category.name.uppercase(),
-                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(8.dp),
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Black
@@ -472,7 +552,9 @@ private fun ActionMenuItem(
 @Composable
 private fun SectionHeaderRow(title: String, actionText: String? = null, onActionClick: () -> Unit = {}) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -506,7 +588,13 @@ private fun PizzaHutBottomNavigation(selectedTab: BottomTab, onSelectTab: (Botto
                     }
                     Icon(icon, contentDescription = tab.label)
                 },
-                label = { Text(tab.label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
+                label = {
+                    Text(
+                        tab.label,
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = PizzaHutRed,
                     selectedTextColor = PizzaHutRed,

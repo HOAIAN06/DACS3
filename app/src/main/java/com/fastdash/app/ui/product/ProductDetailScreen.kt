@@ -2,7 +2,19 @@ package com.fastdash.app.ui.product
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -11,8 +23,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,7 +67,8 @@ fun ProductDetailScreen(
     sizes: List<ProductSizeResponse> = emptyList(),
     toppings: List<ToppingResponse> = emptyList(),
     onBack: () -> Unit,
-    onAddToCart: (productId: Long, quantity: Int, productSizeId: Long?, toppingIds: List<Long>) -> Unit
+    onAddToCart: (productId: Long, quantity: Int, productSizeId: Long?, toppingIds: List<Long>) -> Unit,
+    onBuyNow: (productId: Long, quantity: Int, productSizeId: Long?, toppingIds: List<Long>, totalPrice: Double) -> Unit
 ) {
     var selectedSizeId by remember { mutableStateOf<Long?>(null) }
     var quantity by remember { mutableIntStateOf(1) }
@@ -53,15 +82,13 @@ fun ProductDetailScreen(
 
     val sizePrice = sizes.firstOrNull { it.id == selectedSizeId }?.price ?: product.basePrice
     val toppingsPrice = toppings.filter { selectedToppings.contains(it.id) }.sumOf { it.price }
-    val unitPrice = sizePrice + toppingsPrice
-    val totalPrice = unitPrice * quantity
+    val totalPrice = (sizePrice + toppingsPrice) * quantity
 
     Box(modifier = Modifier.fillMaxSize().background(LightGrey)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 100.dp)
+            contentPadding = PaddingValues(bottom = 140.dp)
         ) {
-            // Product Image Header
             item {
                 Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
                     AsyncImage(
@@ -70,11 +97,9 @@ fun ProductDetailScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
-                    // Gradient overlay could be added here
                 }
             }
 
-            // Product Info Section
             item {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -107,17 +132,15 @@ fun ProductDetailScreen(
                 }
             }
 
-            // Selection Sections
             if (sizes.isNotEmpty()) {
                 item {
                     SectionDivider("CHỌN KÍCH THƯỚC")
                     Surface(modifier = Modifier.fillMaxWidth(), color = SurfaceWhite) {
                         Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
                             sizes.forEach { size ->
-                                val safeSizeName = size.sizeName?.takeIf { it.isNotBlank() } ?: "(Không tên)"
                                 SizeSelectionItem(
                                     size = size,
-                                    displayName = safeSizeName,
+                                    displayName = size.sizeName?.takeIf { it.isNotBlank() } ?: "(Không tên)",
                                     isSelected = selectedSizeId == size.id,
                                     onClick = { selectedSizeId = size.id }
                                 )
@@ -128,9 +151,7 @@ fun ProductDetailScreen(
             }
 
             if (toppings.isNotEmpty()) {
-                item {
-                    SectionDivider("THÊM TOPPING")
-                }
+                item { SectionDivider("THÊM TOPPING") }
                 items(toppings) { topping ->
                     ToppingSelectionItem(
                         topping = topping,
@@ -147,7 +168,6 @@ fun ProductDetailScreen(
             }
         }
 
-        // Floating Back Button
         IconButton(
             onClick = onBack,
             modifier = Modifier
@@ -158,7 +178,6 @@ fun ProductDetailScreen(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
         }
 
-        // Sticky Bottom Bar
         Surface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -173,7 +192,6 @@ fun ProductDetailScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Quantity Selector
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -194,18 +212,47 @@ fun ProductDetailScreen(
                     }
                 }
 
-                // Add to Cart Button
-                Button(
-                    onClick = { onAddToCart(product.id, quantity, selectedSizeId, selectedToppings.toList()) },
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
-                    shape = RoundedCornerShape(12.dp)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "THÊM VÀO GIỎ - ${CurrencyUtils.formatVnd(totalPrice)}",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
+                    Button(
+                        onClick = {
+                            onBuyNow(
+                                product.id,
+                                quantity,
+                                selectedSizeId,
+                                selectedToppings.toList(),
+                                totalPrice
+                            )
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlack),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "MUA NGAY - ${CurrencyUtils.formatVnd(totalPrice)}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    Button(
+                        onClick = { onAddToCart(product.id, quantity, selectedSizeId, selectedToppings.toList()) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "THÊM VÀO GIỎ",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
         }
@@ -250,12 +297,12 @@ private fun SizeSelectionItem(
             colors = RadioButtonDefaults.colors(selectedColor = PizzaHutRed)
         )
         Spacer(Modifier.width(12.dp))
-            Text(
-                text = displayName,
-                fontSize = 16.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
+        Text(
+            text = displayName,
+            fontSize = 16.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
         Text(
             text = CurrencyUtils.formatVnd(size.price),
             fontSize = 14.sp,
@@ -271,7 +318,9 @@ private fun ToppingSelectionItem(
     onToggle: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable { onToggle() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() },
         color = SurfaceWhite
     ) {
         Row(

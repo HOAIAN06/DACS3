@@ -1,30 +1,60 @@
 package com.fastdash.app.data.model.request
 
+import com.google.gson.annotations.SerializedName
+
 data class CreateOrderRequest(
-	val branchId: Long,
-	val deliveryType: String,
-	val receiverName: String,
-	val receiverPhone: String,
-	val deliveryAddress: String,
-	val note: String? = null,
-	val paymentMethod: String,
-	val items: List<OrderItemRequest>
+    @SerializedName("branchId")
+    val branchId: Long,
+    @SerializedName("deliveryType")
+    val deliveryType: String,
+    @SerializedName("receiverName")
+    val receiverName: String,
+    @SerializedName("receiverPhone")
+    val receiverPhone: String,
+    @SerializedName("deliveryAddress")
+    val deliveryAddress: String,
+    @SerializedName("deliveryLatitude")
+    val deliveryLatitude: Double? = null,
+    @SerializedName("deliveryLongitude")
+    val deliveryLongitude: Double? = null,
+    @SerializedName("note")
+    val note: String? = null,
+    @SerializedName("paymentMethod")
+    val paymentMethod: String,
+    @SerializedName("items")
+    val items: List<OrderItemRequest>
 )
 
 data class OrderItemRequest(
-	val productId: Long,
-	val productSizeId: Long? = null,
-	val quantity: Int,
-	val note: String? = null,
-	val toppingIds: List<Long> = emptyList()
+    @SerializedName("productId")
+    val productId: Long,
+    @SerializedName("productSizeId")
+    val productSizeId: Long? = null,
+    @SerializedName("quantity")
+    val quantity: Int,
+    @SerializedName("note")
+    val note: String? = null,
+    @SerializedName("toppingIds")
+    val toppingIds: List<Long> = emptyList()
 )
 
 data class CreateOrderFromCartRequest(
-	val branchId: Long,
-	val deliveryType: String,
-	val receiverName: String,
-	val receiverPhone: String,
-	val deliveryAddress: String,
-	val note: String? = null,
-	val paymentMethod: String
+    @SerializedName("branchId")
+    val branchId: Long,
+    @SerializedName("deliveryType")
+    val deliveryType: String,
+    @SerializedName("receiverName")
+    val receiverName: String,
+    @SerializedName("receiverPhone")
+    val receiverPhone: String,
+    @SerializedName("deliveryAddress")
+    val deliveryAddress: String,
+    @SerializedName("deliveryLatitude")
+    val deliveryLatitude: Double? = null,
+    @SerializedName("deliveryLongitude")
+    val deliveryLongitude: Double? = null,
+    @SerializedName("note")
+    val note: String? = null,
+    @SerializedName("paymentMethod")
+    val paymentMethod: String
 )

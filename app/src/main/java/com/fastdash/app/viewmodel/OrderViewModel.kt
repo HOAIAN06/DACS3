@@ -23,6 +23,9 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
     fun loadOrders() {
         viewModelScope.launch {
             _loading.value = true
@@ -30,7 +33,11 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
                 val response = repository.getOrders()
                 if (response.isSuccessful) {
                     _orders.value = response.body().orEmpty()
+                } else {
+                    _message.value = "Khong the tai danh sach don hang"
                 }
+            } catch (e: Exception) {
+                _message.value = "Loi ket noi don hang: ${e.message}"
             } finally {
                 _loading.value = false
             }
@@ -44,7 +51,11 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
                 val response = repository.getOrderDetail(orderId)
                 if (response.isSuccessful) {
                     _selectedOrder.value = response.body()
+                } else {
+                    _message.value = "Khong the tai chi tiet don hang"
                 }
+            } catch (e: Exception) {
+                _message.value = "Loi ket noi chi tiet don hang: ${e.message}"
             } finally {
                 _loading.value = false
             }
@@ -53,6 +64,10 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
 
     fun clearSelectedOrder() {
         _selectedOrder.value = null
+    }
+
+    fun clearMessage() {
+        _message.value = null
     }
 
     suspend fun createOrder(request: CreateOrderRequest): Boolean {
@@ -88,6 +103,8 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
                     receiverName = request.receiverName,
                     receiverPhone = request.receiverPhone,
                     deliveryAddress = request.deliveryAddress,
+                    deliveryLatitude = request.deliveryLatitude,
+                    deliveryLongitude = request.deliveryLongitude,
                     note = request.note,
                     paymentMethod = request.paymentMethod
                 )

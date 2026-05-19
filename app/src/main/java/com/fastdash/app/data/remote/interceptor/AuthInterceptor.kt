@@ -8,13 +8,20 @@ import okhttp3.Response
 class AuthInterceptor(context: Context) : Interceptor {
 
     private val tokenManager = TokenManager(context)
+    private val authPathsWithoutBearer = setOf(
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/google"
+    )
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val token = tokenManager.getToken()
+        val request = chain.request()
+        val encodedPath = request.url.encodedPath
 
-        val requestBuilder = chain.request().newBuilder()
+        val requestBuilder = request.newBuilder()
 
-        if (!token.isNullOrEmpty()) {
+        if (!token.isNullOrEmpty() && encodedPath !in authPathsWithoutBearer) {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
 
