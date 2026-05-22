@@ -70,16 +70,42 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
         _message.value = null
     }
 
-    suspend fun createOrder(request: CreateOrderRequest): Boolean {
+    suspend fun cancelOrder(orderId: Long): Boolean {
         _loading.value = true
         return try {
-            repository.createOrder(request).isSuccessful
+            val response = repository.cancelOrder(orderId)
+            if (response.isSuccessful) {
+                _selectedOrder.value = response.body()
+                loadOrders()
+                true
+            } else {
+                _message.value = "Không thể hủy đơn hàng"
+                false
+            }
+        } catch (e: Exception) {
+            _message.value = "Lỗi hủy đơn hàng: ${e.message}"
+            false
         } finally {
             _loading.value = false
         }
     }
 
-    suspend fun createOrder(deliveryAddress: String, items: List<OrderItemRequest>): Boolean {
+    suspend fun createOrder(request: CreateOrderRequest): OrderResponse? {
+        _loading.value = true
+        return try {
+            val response = repository.createOrder(request)
+            if (response.isSuccessful) {
+                _selectedOrder.value = response.body()
+                response.body()
+            } else {
+                null
+            }
+        } finally {
+            _loading.value = false
+        }
+    }
+
+    suspend fun createOrder(deliveryAddress: String, items: List<OrderItemRequest>): OrderResponse? {
         return createOrder(
             CreateOrderRequest(
                 branchId = 1L,
@@ -93,7 +119,7 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
         )
     }
 
-    suspend fun createOrderFromCart(request: CheckoutRequest): Boolean {
+    suspend fun createOrderFromCart(request: CheckoutRequest): OrderResponse? {
         _loading.value = true
         return try {
             val response = repository.createOrderFromCart(
@@ -111,9 +137,9 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
             )
             if (response.isSuccessful) {
                 _selectedOrder.value = response.body()
-                true
+                response.body()
             } else {
-                false
+                null
             }
         } finally {
             _loading.value = false

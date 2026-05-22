@@ -22,6 +22,10 @@ val configuredGoogleClientId = (localProperties.getProperty("fastdash.googleClie
     ?: providers.gradleProperty("fastdash.googleClientId").orNull
     ?: "")
     .trim()
+val configuredGoogleMapsApiKey = (localProperties.getProperty("fastdash.googleMapsApiKey")
+    ?: providers.gradleProperty("fastdash.googleMapsApiKey").orNull
+    ?: "")
+    .trim()
 
 android {
     namespace = "com.fastdash.app"
@@ -39,6 +43,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BASE_URL", "\"$configuredBaseUrl\"")
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$configuredGoogleClientId\"")
+        manifestPlaceholders["MAPS_API_KEY"] = configuredGoogleMapsApiKey
     }
 
     buildTypes {
@@ -82,6 +87,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.play.services.auth)
     implementation(libs.play.services.location)
+    implementation("com.google.android.gms:play-services-maps:19.2.0")
+    implementation("com.google.maps.android:maps-compose:6.12.1")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

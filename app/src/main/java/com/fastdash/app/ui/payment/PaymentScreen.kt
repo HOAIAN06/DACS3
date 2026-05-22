@@ -1,101 +1,97 @@
-package com.fastdash.app.ui.payment
+﻿package com.fastdash.app.ui.payment
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fastdash.app.utils.CurrencyUtils
 
-private val PizzaHutRed = Color(0xFFC8102E)
+private val FastDashRed = Color(0xFFC8102E)
 private val SurfaceWhite = Color.White
-private val LightGrey = Color(0xFFF4F4F4)
+private val BackgroundGrey = Color(0xFFF8F8F8)
+private val TextGrey = Color(0xFF6B7280)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentScreen(
     amount: Double,
-    onBack: () -> Unit = {},
-    onConfirmPayment: () -> Unit = {}
+    onBack: () -> Unit,
+    onConfirmPayment: () -> Unit
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Thanh toán", fontWeight = FontWeight.ExtraBold) },
+                title = { Text("Thanh toan", fontWeight = FontWeight.ExtraBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lai")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceWhite)
             )
         },
-        containerColor = LightGrey
+        containerColor = BackgroundGrey
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                modifier = Modifier.size(100.dp),
-                tint = Color(0xFF27AE60)
-            )
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "Đơn hàng đã sẵn sàng!",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "Vui lòng thanh toán số tiền bên dưới khi nhận hàng (COD).",
-                fontSize = 14.sp,
-                color = Color.Gray,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(32.dp))
-            
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                color = SurfaceWhite,
-                shadowElevation = 2.dp
+                color = SurfaceWhite
             ) {
-                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("TỔNG THANH TOÁN", fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text("Don hang da san sang!", fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                    Text(
+                        "Vui long thanh toan so tien ben duoi khi nhan hang (COD).",
+                        color = TextGrey,
+                        fontSize = 14.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("TONG THANH TOAN", fontSize = 12.sp, color = TextGrey, fontWeight = FontWeight.Bold)
                     Text(
                         CurrencyUtils.formatVnd(amount),
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = PizzaHutRed
+                        fontSize = 28.sp,
+                        color = FastDashRed,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
             }
 
-            Spacer(Modifier.height(48.dp))
-
             Button(
                 onClick = onConfirmPayment,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = FastDashRed)
             ) {
-                Text("HOÀN TẤT", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                Text("HOAN TAT", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
             }
         }
     }

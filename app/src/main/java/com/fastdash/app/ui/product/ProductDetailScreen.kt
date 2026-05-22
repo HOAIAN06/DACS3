@@ -1,10 +1,13 @@
-package com.fastdash.app.ui.product
+﻿package com.fastdash.app.ui.product
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,19 +19,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
@@ -43,10 +60,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -56,293 +77,579 @@ import com.fastdash.app.data.model.response.ToppingResponse
 import com.fastdash.app.utils.CurrencyUtils
 import com.fastdash.app.utils.ImageUtils
 
-private val PizzaHutRed = Color(0xFFC8102E)
-private val PrimaryBlack = Color(0xFF1C1C1C)
-private val LightGrey = Color(0xFFF4F4F4)
+private val FastDashRed = Color(0xFFD6092F)
+private val FastDashRedDark = Color(0xFF9B0622)
+private val BackgroundGrey = Color(0xFFFAFAFA)
 private val SurfaceWhite = Color.White
+private val PrimaryBlack = Color(0xFF1F1F1F)
+private val TextGrey = Color(0xFF777777)
+private val BorderGrey = Color(0xFFEAEAEA)
+private val SoftPink = Color(0xFFFFF3F6)
+private val WarmChip = Color(0xFFFFF5DB)
+
+private const val LABEL_BEST_SELLER = "Bán chạy"
+private const val LABEL_FLEX = "Tuỳ chọn linh hoạt"
+private const val LABEL_BACK = "Quay lại"
+private const val LABEL_SHARE = "Chia sẻ"
+private const val LABEL_FAVORITE = "Yêu thích"
+private const val DEFAULT_DESC = "Món ngon được chuẩn bị nóng hổi, hấp dẫn và phù hợp cho bữa ăn chất lượng mỗi ngày."
+private const val OPTION_EMPTY_MESSAGE = "Món này hiện chưa có thêm tuỳ chọn. Bạn vẫn có thể đặt nhanh ngay bên dưới."
 
 @Composable
 fun ProductDetailScreen(
-    product: ProductResponse,
+    product: ProductResponse?,
     sizes: List<ProductSizeResponse> = emptyList(),
     toppings: List<ToppingResponse> = emptyList(),
+    isLoading: Boolean = false,
     onBack: () -> Unit,
-    onAddToCart: (productId: Long, quantity: Int, productSizeId: Long?, toppingIds: List<Long>) -> Unit,
-    onBuyNow: (productId: Long, quantity: Int, productSizeId: Long?, toppingIds: List<Long>, totalPrice: Double) -> Unit
+    onAddToCart: (Long, Int, Long?, List<Long>) -> Unit,
+    onBuyNow: (Long, Int, Long?, List<Long>, Double) -> Unit
 ) {
-    var selectedSizeId by remember { mutableStateOf<Long?>(null) }
-    var quantity by remember { mutableIntStateOf(1) }
-    val selectedToppings = remember { mutableStateListOf<Long>() }
+    if (product == null) {
+        ProductEmptyState(onBack)
+        return
+    }
+
+    var selectedSizeId by remember(product.id, sizes) { mutableStateOf<Long?>(null) }
+    var quantity by remember(product.id) { mutableIntStateOf(1) }
+    val selectedToppings = remember(product.id) { mutableStateListOf<Long>() }
+    var note by remember(product.id) { mutableStateOf("") }
 
     LaunchedEffect(sizes) {
-        if (selectedSizeId == null) {
-            selectedSizeId = sizes.firstOrNull { !it.sizeName.isNullOrBlank() }?.id
-        }
+        if (selectedSizeId == null) selectedSizeId = sizes.firstOrNull()?.id
     }
 
-    val sizePrice = sizes.firstOrNull { it.id == selectedSizeId }?.price ?: product.basePrice
+    val unitPrice = sizes.firstOrNull { it.id == selectedSizeId }?.price ?: product.basePrice
     val toppingsPrice = toppings.filter { selectedToppings.contains(it.id) }.sumOf { it.price }
-    val totalPrice = (sizePrice + toppingsPrice) * quantity
+    val totalPrice = (unitPrice + toppingsPrice) * quantity
+    val badgeLabel = if (product.isCustomizable == 1) LABEL_FLEX else LABEL_BEST_SELLER
+    val supportingLine = if (product.categoryName.contains("combo", true)) "Lý tưởng cho bữa ăn chia sẻ" else "Món được yêu thích trên FastDash"
 
-    Box(modifier = Modifier.fillMaxSize().background(LightGrey)) {
+    Box(modifier = Modifier.fillMaxSize().background(BackgroundGrey)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 140.dp)
+            contentPadding = PaddingValues(bottom = 206.dp)
         ) {
             item {
-                Box(modifier = Modifier.fillMaxWidth().height(300.dp)) {
-                    AsyncImage(
-                        model = ImageUtils.buildImageRequest(LocalContext.current, product.imageUrl),
-                        contentDescription = product.name,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
+                ProductHeroImage(product = product, isLoading = isLoading) {
+                    ProductDetailTopBar(onBack = onBack)
                 }
             }
-
             item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-                    color = SurfaceWhite,
-                    tonalElevation = 4.dp
-                ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
-                        Text(
-                            text = product.name,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = PrimaryBlack
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            text = product.description ?: "Không có mô tả cho sản phẩm này.",
-                            fontSize = 14.sp,
-                            color = Color.Gray,
-                            lineHeight = 20.sp
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = CurrencyUtils.formatVnd(sizePrice),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = PizzaHutRed
-                        )
-                    }
-                }
+                ProductInfoCard(
+                    product = product,
+                    displayPrice = unitPrice,
+                    badgeLabel = badgeLabel,
+                    supportingLine = supportingLine
+                )
             }
-
-            if (sizes.isNotEmpty()) {
-                item {
-                    SectionDivider("CHỌN KÍCH THƯỚC")
-                    Surface(modifier = Modifier.fillMaxWidth(), color = SurfaceWhite) {
-                        Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)) {
-                            sizes.forEach { size ->
-                                SizeSelectionItem(
-                                    size = size,
-                                    displayName = size.sizeName?.takeIf { it.isNotBlank() } ?: "(Không tên)",
-                                    isSelected = selectedSizeId == size.id,
-                                    onClick = { selectedSizeId = size.id }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (toppings.isNotEmpty()) {
-                item { SectionDivider("THÊM TOPPING") }
-                items(toppings) { topping ->
-                    ToppingSelectionItem(
-                        topping = topping,
-                        isSelected = selectedToppings.contains(topping.id),
-                        onToggle = {
-                            if (selectedToppings.contains(topping.id)) {
-                                selectedToppings.remove(topping.id)
-                            } else {
-                                selectedToppings.add(topping.id)
-                            }
-                        }
-                    )
-                }
-            }
-        }
-
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier
-                .padding(16.dp)
-                .size(40.dp)
-                .background(Color.Black.copy(alpha = 0.3f), CircleShape)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-        }
-
-        Surface(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            shadowElevation = 8.dp,
-            color = SurfaceWhite
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .navigationBarsPadding(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .background(LightGrey, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    IconButton(onClick = { if (quantity > 1) quantity-- }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Remove, contentDescription = null, tint = PrimaryBlack)
-                    }
-                    Text(
-                        text = quantity.toString(),
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    IconButton(onClick = { quantity++ }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = PrimaryBlack)
-                    }
-                }
-
+            item {
                 Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Button(
-                        onClick = {
-                            onBuyNow(
-                                product.id,
-                                quantity,
-                                selectedSizeId,
-                                selectedToppings.toList(),
-                                totalPrice
-                            )
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlack),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "MUA NGAY - ${CurrencyUtils.formatVnd(totalPrice)}",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                    if (sizes.isNotEmpty()) {
+                        ProductSizeSection(
+                            sizes = sizes,
+                            selectedSizeId = selectedSizeId,
+                            onSelectSize = { selectedSizeId = it }
                         )
                     }
-
-                    Button(
-                        onClick = { onAddToCart(product.id, quantity, selectedSizeId, selectedToppings.toList()) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "THÊM VÀO GIỎ",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                    if (toppings.isNotEmpty()) {
+                        ProductToppingSection(
+                            toppings = toppings,
+                            selectedToppings = selectedToppings,
+                            onToggleTopping = {
+                                if (selectedToppings.contains(it)) selectedToppings.remove(it) else selectedToppings.add(it)
+                            }
                         )
+                    }
+                    ProductNoteSection(note = note, onNoteChanged = { note = it })
+                    if (sizes.isEmpty() && toppings.isEmpty()) {
+                        EmptyOptionCard()
                     }
                 }
             }
         }
-    }
-}
 
-@Composable
-private fun SectionDivider(title: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp)
-            .background(Color.White)
-            .padding(horizontal = 24.dp, vertical = 8.dp)
-    ) {
-        Text(
-            text = title,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Gray
+        ProductBottomActionBar(
+            quantity = quantity,
+            totalPrice = totalPrice,
+            onDecrease = { if (quantity > 1) quantity-- },
+            onIncrease = { quantity++ },
+            onBuyNowClick = { onBuyNow(product.id, quantity, selectedSizeId, selectedToppings.toList(), totalPrice) },
+            onAddToCartClick = { onAddToCart(product.id, quantity, selectedSizeId, selectedToppings.toList()) }
         )
     }
 }
 
 @Composable
-private fun SizeSelectionItem(
-    size: ProductSizeResponse,
-    displayName: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
+private fun ProductDetailTopBar(onBack: () -> Unit) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-            .padding(vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        RadioButton(
-            selected = isSelected,
-            onClick = onClick,
-            colors = RadioButtonDefaults.colors(selectedColor = PizzaHutRed)
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = displayName,
-            fontSize = 16.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = CurrencyUtils.formatVnd(size.price),
-            fontSize = 14.sp,
-            color = if (isSelected) PizzaHutRed else Color.Black
-        )
+        ProductTopActionButton(icon = Icons.AutoMirrored.Filled.ArrowBack, description = LABEL_BACK, onClick = onBack)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ProductTopActionButton(icon = Icons.Filled.Share, description = LABEL_SHARE, onClick = {})
+            ProductTopActionButton(icon = Icons.Filled.FavoriteBorder, description = LABEL_FAVORITE, onClick = {})
+        }
     }
 }
 
 @Composable
-private fun ToppingSelectionItem(
-    topping: ToppingResponse,
+private fun ProductTopActionButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.size(42.dp).clickable { onClick() },
+        shape = CircleShape,
+        color = Color.Black.copy(alpha = 0.24f)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = description, tint = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun ProductHeroImage(product: ProductResponse, isLoading: Boolean, overlayContent: @Composable BoxScope.() -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth().height(328.dp)) {
+        if (product.imageUrl.isNullOrBlank()) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Brush.linearGradient(listOf(FastDashRed, FastDashRedDark))),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(product.categoryName.ifBlank { "FastDash" }, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+            }
+        } else {
+            AsyncImage(
+                model = ImageUtils.buildImageRequest(LocalContext.current, product.imageUrl),
+                contentDescription = product.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    colors = listOf(Color.Black.copy(alpha = 0.32f), Color.Transparent, Color.Transparent, BackgroundGrey)
+                )
+            )
+        )
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color.White)
+        }
+        overlayContent()
+    }
+}
+
+@Composable
+private fun ProductInfoCard(product: ProductResponse, displayPrice: Double, badgeLabel: String, supportingLine: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 0.dp),
+        shape = RoundedCornerShape(26.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ProductBadgeRow(badgeLabel = badgeLabel)
+            Text(
+                text = product.name,
+                fontSize = 29.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = PrimaryBlack,
+                lineHeight = 35.sp
+            )
+            Text(
+                text = product.description?.takeIf { it.isNotBlank() } ?: DEFAULT_DESC,
+                fontSize = 14.sp,
+                color = TextGrey,
+                lineHeight = 21.sp
+            )
+            Text(
+                text = CurrencyUtils.formatVnd(displayPrice),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = FastDashRed
+            )
+            Text(
+                text = "${product.categoryName} • $supportingLine",
+                fontSize = 13.sp,
+                color = TextGrey
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProductBadgeRow(badgeLabel: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(color = SoftPink, shape = RoundedCornerShape(50)) {
+            Text(
+                text = badgeLabel,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                color = FastDashRed,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp
+            )
+        }
+        Surface(color = WarmChip, shape = RoundedCornerShape(50)) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFF4A622), modifier = Modifier.size(14.dp))
+                Text("4.8", color = PrimaryBlack, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProductSizeSection(sizes: List<ProductSizeResponse>, selectedSizeId: Long?, onSelectSize: (Long?) -> Unit) {
+    OptionSectionCard(title = "Chọn size", subtitle = "Tùy chọn phần ăn phù hợp") {
+        sizes.forEach { size ->
+            OptionRow(
+                isSelected = selectedSizeId == size.id,
+                title = size.sizeName?.takeIf { it.isNotBlank() } ?: "Kích thước tiêu chuẩn",
+                subtitle = "Phù hợp cho bữa ăn linh hoạt",
+                price = CurrencyUtils.formatVnd(size.price),
+                onClick = { onSelectSize(size.id) }
+            ) {
+                RadioButton(
+                    selected = selectedSizeId == size.id,
+                    onClick = { onSelectSize(size.id) },
+                    colors = RadioButtonDefaults.colors(selectedColor = FastDashRed)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProductToppingSection(toppings: List<ToppingResponse>, selectedToppings: List<Long>, onToggleTopping: (Long) -> Unit) {
+    OptionSectionCard(title = "Chọn topping", subtitle = "Thêm hương vị bạn yêu thích") {
+        toppings.forEach { topping ->
+            ToppingRow(
+                isSelected = selectedToppings.contains(topping.id),
+                title = topping.name?.takeIf { it.isNotBlank() } ?: "Topping yêu thích",
+                subtitle = "Thêm hương vị theo sở thích của bạn",
+                price = "+ ${CurrencyUtils.formatVnd(topping.price)}",
+                onClick = { onToggleTopping(topping.id) },
+                onCheckedChange = { onToggleTopping(topping.id) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProductNoteSection(note: String, onNoteChanged: (String) -> Unit) {
+    var expanded by remember(note) { mutableStateOf(note.isNotBlank()) }
+    val quickNotes = listOf("Ít cay", "Thêm tương cà", "Không hành", "Cắt nhỏ", "Giao nóng")
+
+    fun appendQuickNote(chip: String) {
+        val currentItems = note.split(",")
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        val alreadyExists = currentItems.any { it.equals(chip, ignoreCase = true) }
+        if (!alreadyExists) {
+            onNoteChanged((currentItems + chip).joinToString(", "))
+        }
+        expanded = true
+    }
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(32.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = FastDashRed.copy(alpha = 0.08f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.EditNote, contentDescription = null, tint = FastDashRed, modifier = Modifier.size(17.dp))
+                        }
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Ghi chú cho cửa hàng", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = PrimaryBlack)
+                        Text(
+                            if (expanded || note.isNotBlank()) "Thêm yêu cầu đặc biệt nếu có" else "Thêm ghi chú cho cửa hàng",
+                            fontSize = 12.sp,
+                            color = TextGrey
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = TextGrey
+                )
+            }
+
+            if (expanded) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(quickNotes) { chip ->
+                        val selected = note.split(",").map { it.trim() }.any { it.equals(chip, ignoreCase = true) }
+                        Surface(
+                            modifier = Modifier.clickable { appendQuickNote(chip) },
+                            shape = RoundedCornerShape(50),
+                            color = if (selected) SoftPink else Color(0xFFFAFAFA),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (selected) FastDashRed.copy(alpha = 0.25f) else BorderGrey)
+                        ) {
+                            Text(
+                                text = chip,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                color = if (selected) FastDashRed else PrimaryBlack,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = onNoteChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Ví dụ: ít cay, thêm tương cà, không hành...", color = TextGrey) },
+                    minLines = 2,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = FastDashRed,
+                        unfocusedBorderColor = BorderGrey,
+                        focusedContainerColor = Color(0xFFFAFAFA),
+                        unfocusedContainerColor = Color(0xFFFAFAFA),
+                        cursorColor = FastDashRed
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionSectionCard(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PrimaryBlack)
+            Text(subtitle, fontSize = 13.sp, color = TextGrey)
+            content()
+        }
+    }
+}
+
+@Composable
+private fun OptionRow(
     isSelected: Boolean,
-    onToggle: () -> Unit
+    title: String,
+    subtitle: String,
+    price: String,
+    onClick: () -> Unit,
+    selector: @Composable () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onToggle() },
-        color = SurfaceWhite
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        color = if (isSelected) SoftPink else Color(0xFFFDFDFD),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) FastDashRed.copy(alpha = 0.45f) else BorderGrey)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            selector()
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack)
+                Text(subtitle, fontSize = 12.sp, color = TextGrey)
+            }
+            Text(price, color = FastDashRed, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+        }
+    }
+}
+
+@Composable
+private fun ToppingRow(
+    isSelected: Boolean,
+    title: String,
+    subtitle: String,
+    price: String,
+    onClick: () -> Unit,
+    onCheckedChange: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        color = if (isSelected) SoftPink else Color(0xFFFDFDFD),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) FastDashRed.copy(alpha = 0.45f) else BorderGrey)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Checkbox(
                 checked = isSelected,
-                onCheckedChange = { onToggle() },
-                colors = CheckboxDefaults.colors(checkedColor = PizzaHutRed)
+                onCheckedChange = { onCheckedChange() },
+                colors = CheckboxDefaults.colors(checkedColor = FastDashRed)
             )
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = topping.name?.takeIf { it.isNotBlank() } ?: "(Không tên)",
-                fontSize = 16.sp,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "+ ${CurrencyUtils.formatVnd(topping.price)}",
-                fontSize = 14.sp,
-                color = PizzaHutRed
-            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack)
+                Text(subtitle, fontSize = 12.sp, color = TextGrey)
+            }
+            Text(price, color = FastDashRed, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
+
+@Composable
+private fun EmptyOptionCard() {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Surface(modifier = Modifier.size(36.dp), shape = CircleShape, color = FastDashRed.copy(alpha = 0.1f)) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Info, contentDescription = null, tint = FastDashRed, modifier = Modifier.size(18.dp))
+                }
+            }
+            Text(OPTION_EMPTY_MESSAGE, color = TextGrey, lineHeight = 20.sp)
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.ProductBottomActionBar(
+    quantity: Int,
+    totalPrice: Double,
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit,
+    onBuyNowClick: () -> Unit,
+    onAddToCartClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+        color = SurfaceWhite,
+        shadowElevation = 18.dp,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp).navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Tổng tạm tính", fontSize = 13.sp, color = TextGrey)
+                    Text(CurrencyUtils.formatVnd(totalPrice), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = FastDashRed)
+                }
+                ProductQuantitySelector(quantity = quantity, onDecrease = onDecrease, onIncrease = onIncrease)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(
+                    onClick = onBuyNowClick,
+                    modifier = Modifier.weight(1f).height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlack, contentColor = Color.White)
+                ) {
+                    Text("Mua ngay", fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = onAddToCartClick,
+                    modifier = Modifier.weight(1.35f).height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = FastDashRed, contentColor = Color.White)
+                ) {
+                    Text("Thêm vào giỏ", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProductQuantitySelector(quantity: Int, onDecrease: () -> Unit, onIncrease: () -> Unit) {
+    Surface(shape = RoundedCornerShape(18.dp), color = Color(0xFFF5F5F5)) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onDecrease, modifier = Modifier.size(34.dp)) {
+                Icon(Icons.Filled.Remove, contentDescription = "Giảm số lượng", tint = PrimaryBlack)
+            }
+            Text(quantity.toString(), modifier = Modifier.padding(horizontal = 12.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack)
+            IconButton(onClick = onIncrease, modifier = Modifier.size(34.dp)) {
+                Icon(Icons.Filled.Add, contentDescription = "Tăng số lượng", tint = FastDashRed)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProductEmptyState(onBack: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize().background(BackgroundGrey), contentAlignment = Alignment.Center) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = FastDashRed, modifier = Modifier.size(42.dp))
+                Text("Không tìm thấy món ăn", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryBlack)
+                Text(
+                    "Món bạn chọn hiện không khả dụng. Vui lòng quay lại thực đơn để chọn món khác.",
+                    color = TextGrey,
+                    lineHeight = 20.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Button(
+                    onClick = onBack,
+                    colors = ButtonDefaults.buttonColors(containerColor = FastDashRed, contentColor = Color.White),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(LABEL_BACK, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
