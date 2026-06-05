@@ -3,8 +3,10 @@ package com.fastdash.app.data.remote.api
 import com.fastdash.app.data.model.request.CreateOrderFromCartRequest
 import com.fastdash.app.data.model.request.CreateOrderRequest
 import com.fastdash.app.data.model.request.ShippingFeeQuoteRequest
+import com.fastdash.app.data.model.request.VnpayPaymentRequest
 import com.fastdash.app.data.model.response.OrderResponse
 import com.fastdash.app.data.model.response.ShippingFeeQuoteResponse
+import com.fastdash.app.data.model.response.VnpayPaymentResponse
 import retrofit2.Response
 import retrofit2.http.*
 
@@ -27,4 +29,7 @@ interface OrderApi {
 
 	@PUT("api/v1/orders/{id}/cancel")
 	suspend fun cancelOrder(@Path("id") id: Long): Response<OrderResponse>
+
+	@POST("api/v1/payments/vnpay/create")
+	suspend fun createVnpayPayment(@Body request: VnpayPaymentRequest): Response<VnpayPaymentResponse>
 }

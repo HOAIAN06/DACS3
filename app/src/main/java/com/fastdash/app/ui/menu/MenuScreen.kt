@@ -144,9 +144,8 @@ private fun MenuHeader(cartCount: Int, onCartClick: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column {
                 Text("Thực đơn", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryBlack)
-                Text("Chọn món ngon hôm nay", fontSize = 14.sp, color = TextGrey)
             }
             Surface(shape = CircleShape, color = SurfaceWhite, shadowElevation = 6.dp) {
                 BadgedBox(badge = {
@@ -257,14 +256,16 @@ private fun MenuProductCard(product: ProductResponse, onClick: () -> Unit, onAdd
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(product.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(
-                    product.description?.takeIf { it.isNotBlank() } ?: "Món ngon nóng hổi, giao nhanh đến bạn.",
-                    fontSize = 12.sp,
-                    color = TextGrey,
-                    lineHeight = 18.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                product.description?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        it,
+                        fontSize = 12.sp,
+                        color = TextGrey,
+                        lineHeight = 18.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(CurrencyUtils.formatVnd(product.basePrice), fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, color = FastDashRed)
                     Surface(modifier = Modifier.size(40.dp).clickable { onAddToCart() }, shape = CircleShape, color = FastDashRed, shadowElevation = 4.dp) {

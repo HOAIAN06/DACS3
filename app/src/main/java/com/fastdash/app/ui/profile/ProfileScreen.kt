@@ -74,6 +74,7 @@ fun ProfileScreen(
     role: String,
     onBack: () -> Unit,
     onOpenOrders: () -> Unit,
+    onEditProfile: () -> Unit,
     onLogout: () -> Unit,
     isLoggedIn: Boolean = true,
     onLogin: () -> Unit = {}
@@ -94,23 +95,22 @@ fun ProfileScreen(
             GuestAccountState(onLogin = onLogin)
         } else {
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                AccountHeaderCard(name = displayName, email = displayEmail, phone = displayPhone, role = displayRole)
+                AccountHeaderCard(name = displayName, email = displayEmail, phone = displayPhone, role = displayRole, onEditProfile = onEditProfile)
                 Spacer(Modifier.height(16.dp))
                 AccountSection(title = "Đơn hàng của tôi") {
-                    AccountMenuItem(Icons.AutoMirrored.Outlined.Assignment, "Lịch sử đơn hàng", "Xem lại các đơn đã đặt", onOpenOrders)
-                    AccountMenuItem(Icons.Outlined.Settings, "Theo dõi đơn hàng", "Cập nhật trạng thái giao hàng mới nhất", onOpenOrders, showDivider = false)
+                    AccountMenuItem(Icons.AutoMirrored.Outlined.Assignment, "Lịch sử đơn hàng", onOpenOrders)
+                    AccountMenuItem(Icons.Outlined.Settings, "Theo dõi đơn hàng", onOpenOrders, showDivider = false)
                 }
                 AccountSection(title = "Cài đặt của tôi") {
-                    AccountMenuItem(Icons.Outlined.LocationOn, "Địa chỉ đã lưu", "Quản lý địa điểm nhận hàng", {})
-                    AccountMenuItem(Icons.Outlined.CreditCard, "Phương thức thanh toán", "Lựa chọn cách thanh toán phù hợp", {}, showDivider = false)
+                    AccountMenuItem(Icons.Outlined.LocationOn, "Địa chỉ đã lưu", {}, showDivider = false)
                 }
                 AccountSection(title = "Hỗ trợ") {
-                    AccountMenuItem(Icons.Outlined.SupportAgent, "Trung tâm trợ giúp", "Liên hệ hỗ trợ và câu hỏi thường gặp", {})
-                    AccountMenuItem(Icons.Outlined.Info, "Điều khoản & Chính sách", "Thông tin sử dụng và quyền riêng tư", {}, showDivider = false)
+                    AccountMenuItem(Icons.Outlined.SupportAgent, "Trung tâm trợ giúp", {})
+                    AccountMenuItem(Icons.Outlined.Info, "Điều khoản & Chính sách", {}, showDivider = false)
                 }
                 AccountSection(title = "Thông tin tài khoản") {
-                    AccountMenuItem(Icons.Outlined.Phone, "Số điện thoại", displayPhone, {}, enabled = false)
-                    AccountMenuItem(Icons.Outlined.Badge, "Vai trò tài khoản", displayRole, {}, enabled = false, showDivider = false)
+                    AccountMenuItem(Icons.Outlined.Phone, "Số điện thoại", {}, subtitle = displayPhone, enabled = false)
+                    AccountMenuItem(Icons.Outlined.Badge, "Vai trò tài khoản", {}, subtitle = displayRole, enabled = false, showDivider = false)
                 }
                 LogoutButton(onClick = { showLogoutDialog = true })
                 Spacer(Modifier.height(32.dp))
@@ -140,7 +140,7 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun AccountHeaderCard(name: String, email: String, phone: String, role: String) {
+private fun AccountHeaderCard(name: String, email: String, phone: String, role: String, onEditProfile: () -> Unit) {
     Box(modifier = Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(FastDashRed, FastDashRedDark))).padding(horizontal = 16.dp, vertical = 20.dp)) {
         Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = SurfaceWhite), elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)) {
             Column(modifier = Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -162,10 +162,10 @@ private fun AccountHeaderCard(name: String, email: String, phone: String, role: 
                         Text(role, color = FastDashRedDark, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
-                OutlinedButton(onClick = {}, enabled = false, shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, DividerGrey)) {
-                    Icon(Icons.Outlined.Edit, contentDescription = null, tint = TextGrey, modifier = Modifier.size(16.dp))
+                OutlinedButton(onClick = onEditProfile, shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, DividerGrey)) {
+                    Icon(Icons.Outlined.Edit, contentDescription = null, tint = PrimaryBlack, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Chỉnh sửa", color = TextGrey)
+                    Text("Chỉnh sửa", color = PrimaryBlack)
                 }
             }
         }
@@ -184,7 +184,14 @@ private fun AccountSection(title: String, content: @Composable ColumnScope.() ->
 }
 
 @Composable
-private fun AccountMenuItem(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, enabled: Boolean = true, showDivider: Boolean = true) {
+private fun AccountMenuItem(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+    subtitle: String? = null,
+    enabled: Boolean = true,
+    showDivider: Boolean = true
+) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth().clickable(enabled = enabled) { onClick() }.padding(horizontal = 16.dp, vertical = 16.dp),
@@ -194,9 +201,11 @@ private fun AccountMenuItem(icon: ImageVector, title: String, subtitle: String, 
             Surface(modifier = Modifier.size(42.dp), shape = RoundedCornerShape(14.dp), color = FastDashRed.copy(alpha = 0.1f)) {
                 Box(contentAlignment = Alignment.Center) { Icon(icon, contentDescription = null, tint = if (enabled) FastDashRed else TextGrey) }
             }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (subtitle.isNullOrBlank()) 0.dp else 2.dp)) {
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = PrimaryBlack)
-                Text(subtitle, fontSize = 12.sp, color = TextGrey, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                subtitle?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, fontSize = 12.sp, color = TextGrey, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
             }
             if (enabled) Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextGrey)
         }
@@ -236,7 +245,7 @@ private fun GuestAccountState(onLogin: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         Text("Bạn chưa đăng nhập", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryBlack)
         Spacer(Modifier.height(8.dp))
-        Text("Đăng nhập để quản lý đơn hàng, địa chỉ và thông tin tài khoản của bạn.", color = TextGrey, fontSize = 14.sp)
+        Text("Đăng nhập để tiếp tục", color = TextGrey, fontSize = 14.sp)
         Spacer(Modifier.height(20.dp))
         Button(onClick = onLogin, colors = ButtonDefaults.buttonColors(containerColor = FastDashRed, contentColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Text("Đăng nhập ngay", fontWeight = FontWeight.Bold)

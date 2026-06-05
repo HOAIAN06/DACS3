@@ -7,6 +7,7 @@ import com.fastdash.app.data.model.request.CreateOrderFromCartRequest
 import com.fastdash.app.data.model.request.CreateOrderRequest
 import com.fastdash.app.data.model.request.OrderItemRequest
 import com.fastdash.app.data.model.response.OrderResponse
+import com.fastdash.app.data.model.response.VnpayPaymentResponse
 import com.fastdash.app.data.repository.OrderRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -137,6 +138,34 @@ class OrderViewModel(private val repository: OrderRepository) : ViewModel() {
             )
             if (response.isSuccessful) {
                 _selectedOrder.value = response.body()
+                response.body()
+            } else {
+                null
+            }
+        } finally {
+            _loading.value = false
+        }
+    }
+
+    suspend fun fetchOrderDetail(orderId: Long): OrderResponse? {
+        _loading.value = true
+        return try {
+            val response = repository.getOrderDetail(orderId)
+            if (response.isSuccessful) {
+                response.body()?.also { _selectedOrder.value = it }
+            } else {
+                null
+            }
+        } finally {
+            _loading.value = false
+        }
+    }
+
+    suspend fun createVnpayPayment(orderId: Long): VnpayPaymentResponse? {
+        _loading.value = true
+        return try {
+            val response = repository.createVnpayPayment(orderId)
+            if (response.isSuccessful) {
                 response.body()
             } else {
                 null

@@ -92,7 +92,6 @@ private const val LABEL_FLEX = "Tuỳ chọn linh hoạt"
 private const val LABEL_BACK = "Quay lại"
 private const val LABEL_SHARE = "Chia sẻ"
 private const val LABEL_FAVORITE = "Yêu thích"
-private const val DEFAULT_DESC = "Món ngon được chuẩn bị nóng hổi, hấp dẫn và phù hợp cho bữa ăn chất lượng mỗi ngày."
 private const val OPTION_EMPTY_MESSAGE = "Món này hiện chưa có thêm tuỳ chọn. Bạn vẫn có thể đặt nhanh ngay bên dưới."
 
 @Composable
@@ -123,7 +122,6 @@ fun ProductDetailScreen(
     val toppingsPrice = toppings.filter { selectedToppings.contains(it.id) }.sumOf { it.price }
     val totalPrice = (unitPrice + toppingsPrice) * quantity
     val badgeLabel = if (product.isCustomizable == 1) LABEL_FLEX else LABEL_BEST_SELLER
-    val supportingLine = if (product.categoryName.contains("combo", true)) "Lý tưởng cho bữa ăn chia sẻ" else "Món được yêu thích trên FastDash"
 
     Box(modifier = Modifier.fillMaxSize().background(BackgroundGrey)) {
         LazyColumn(
@@ -139,8 +137,7 @@ fun ProductDetailScreen(
                 ProductInfoCard(
                     product = product,
                     displayPrice = unitPrice,
-                    badgeLabel = badgeLabel,
-                    supportingLine = supportingLine
+                    badgeLabel = badgeLabel
                 )
             }
             item {
@@ -244,7 +241,7 @@ private fun ProductHeroImage(product: ProductResponse, isLoading: Boolean, overl
 }
 
 @Composable
-private fun ProductInfoCard(product: ProductResponse, displayPrice: Double, badgeLabel: String, supportingLine: String) {
+private fun ProductInfoCard(product: ProductResponse, displayPrice: Double, badgeLabel: String) {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(top = 0.dp),
         shape = RoundedCornerShape(26.dp),
@@ -263,23 +260,23 @@ private fun ProductInfoCard(product: ProductResponse, displayPrice: Double, badg
                 color = PrimaryBlack,
                 lineHeight = 35.sp
             )
-            Text(
-                text = product.description?.takeIf { it.isNotBlank() } ?: DEFAULT_DESC,
-                fontSize = 14.sp,
-                color = TextGrey,
-                lineHeight = 21.sp
-            )
+            product.description?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    text = it,
+                    fontSize = 14.sp,
+                    color = TextGrey,
+                    lineHeight = 21.sp
+                )
+            }
             Text(
                 text = CurrencyUtils.formatVnd(displayPrice),
                 fontSize = 28.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = FastDashRed
             )
-            Text(
-                text = "${product.categoryName} • $supportingLine",
-                fontSize = 13.sp,
-                color = TextGrey
-            )
+            product.categoryName.takeIf { it.isNotBlank() }?.let {
+                Text(text = it, fontSize = 13.sp, color = TextGrey)
+            }
         }
     }
 }
@@ -311,12 +308,11 @@ private fun ProductBadgeRow(badgeLabel: String) {
 
 @Composable
 private fun ProductSizeSection(sizes: List<ProductSizeResponse>, selectedSizeId: Long?, onSelectSize: (Long?) -> Unit) {
-    OptionSectionCard(title = "Chọn size", subtitle = "Tùy chọn phần ăn phù hợp") {
+    OptionSectionCard(title = "Chọn size") {
         sizes.forEach { size ->
             OptionRow(
                 isSelected = selectedSizeId == size.id,
                 title = size.sizeName?.takeIf { it.isNotBlank() } ?: "Kích thước tiêu chuẩn",
-                subtitle = "Phù hợp cho bữa ăn linh hoạt",
                 price = CurrencyUtils.formatVnd(size.price),
                 onClick = { onSelectSize(size.id) }
             ) {
@@ -332,12 +328,11 @@ private fun ProductSizeSection(sizes: List<ProductSizeResponse>, selectedSizeId:
 
 @Composable
 private fun ProductToppingSection(toppings: List<ToppingResponse>, selectedToppings: List<Long>, onToggleTopping: (Long) -> Unit) {
-    OptionSectionCard(title = "Chọn topping", subtitle = "Thêm hương vị bạn yêu thích") {
+    OptionSectionCard(title = "Chọn topping") {
         toppings.forEach { topping ->
             ToppingRow(
                 isSelected = selectedToppings.contains(topping.id),
                 title = topping.name?.takeIf { it.isNotBlank() } ?: "Topping yêu thích",
-                subtitle = "Thêm hương vị theo sở thích của bạn",
                 price = "+ ${CurrencyUtils.formatVnd(topping.price)}",
                 onClick = { onToggleTopping(topping.id) },
                 onCheckedChange = { onToggleTopping(topping.id) }
@@ -386,14 +381,7 @@ private fun ProductNoteSection(note: String, onNoteChanged: (String) -> Unit) {
                             Icon(Icons.Outlined.EditNote, contentDescription = null, tint = FastDashRed, modifier = Modifier.size(17.dp))
                         }
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text("Ghi chú cho cửa hàng", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = PrimaryBlack)
-                        Text(
-                            if (expanded || note.isNotBlank()) "Thêm yêu cầu đặc biệt nếu có" else "Thêm ghi chú cho cửa hàng",
-                            fontSize = 12.sp,
-                            color = TextGrey
-                        )
-                    }
+                    Text("Ghi chú cho cửa hàng", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = PrimaryBlack)
                 }
                 Icon(
                     imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
@@ -445,7 +433,7 @@ private fun ProductNoteSection(note: String, onNoteChanged: (String) -> Unit) {
 }
 
 @Composable
-private fun OptionSectionCard(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
+private fun OptionSectionCard(title: String, content: @Composable ColumnScope.() -> Unit) {
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
@@ -453,7 +441,6 @@ private fun OptionSectionCard(title: String, subtitle: String, content: @Composa
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PrimaryBlack)
-            Text(subtitle, fontSize = 13.sp, color = TextGrey)
             content()
         }
     }
@@ -463,7 +450,6 @@ private fun OptionSectionCard(title: String, subtitle: String, content: @Composa
 private fun OptionRow(
     isSelected: Boolean,
     title: String,
-    subtitle: String,
     price: String,
     onClick: () -> Unit,
     selector: @Composable () -> Unit
@@ -480,9 +466,8 @@ private fun OptionRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             selector()
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack)
-                Text(subtitle, fontSize = 12.sp, color = TextGrey)
             }
             Text(price, color = FastDashRed, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
         }
@@ -493,7 +478,6 @@ private fun OptionRow(
 private fun ToppingRow(
     isSelected: Boolean,
     title: String,
-    subtitle: String,
     price: String,
     onClick: () -> Unit,
     onCheckedChange: () -> Unit
@@ -514,9 +498,8 @@ private fun ToppingRow(
                 onCheckedChange = { onCheckedChange() },
                 colors = CheckboxDefaults.colors(checkedColor = FastDashRed)
             )
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack)
-                Text(subtitle, fontSize = 12.sp, color = TextGrey)
             }
             Text(price, color = FastDashRed, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }

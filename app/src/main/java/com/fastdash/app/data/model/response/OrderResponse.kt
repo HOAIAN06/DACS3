@@ -6,7 +6,7 @@ data class OrderResponse(
     val id: Long = 0L,
     @SerializedName(value = "orderCode", alternate = ["code"])
     val orderCode: String? = null,
-    @SerializedName(value = "status", alternate = ["order_status"])
+    @SerializedName("status")
     val status: String? = null,
     @SerializedName(value = "createdAt", alternate = ["created_at"])
     val createdAt: String? = null,
@@ -32,6 +32,10 @@ data class OrderResponse(
     val paymentMethod: String? = null,
     @SerializedName(value = "paymentStatus", alternate = ["payment_status"])
     val paymentStatus: String? = null,
+    @SerializedName(value = "paymentUrl", alternate = ["payment_url"])
+    val paymentUrl: String? = null,
+    @SerializedName(value = "orderStatus", alternate = ["order_status"])
+    val orderStatus: String? = null,
     @SerializedName(value = "branchName", alternate = ["branch_name", "storeName", "store_name"])
     val branchName: String? = null,
     @SerializedName(value = "branchAddress", alternate = ["branch_address", "storeAddress", "store_address"])

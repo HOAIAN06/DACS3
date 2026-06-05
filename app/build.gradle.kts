@@ -85,6 +85,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.browser:browser:1.8.0")
     implementation(libs.play.services.auth)
     implementation(libs.play.services.location)
     implementation("com.google.android.gms:play-services-maps:19.2.0")

@@ -3,8 +3,10 @@ package com.fastdash.app.viewmodel
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fastdash.app.data.model.response.ApiErrorResponse
 import com.fastdash.app.data.remote.api.AdminToppingResponse
 import com.fastdash.app.data.repository.AdminToppingRepository
+import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +31,10 @@ data class AdminToppingUiState(
     val imagePreview: String = "",
     val formLoading: Boolean = false,
     val formMessage: String? = null,
-    val formError: Boolean = false
+    val formError: Boolean = false,
+    val isActiveInput: Boolean = true,
+    val deletingToppingId: Long? = null,
+    val togglingToppingId: Long? = null
 )
 
 class AdminToppingViewModel(
@@ -97,6 +102,10 @@ class AdminToppingViewModel(
         _uiState.update { it.copy(imageUrlInput = value, formMessage = null, formError = false) }
     }
 
+    fun onActiveChanged(value: Boolean) {
+        _uiState.update { it.copy(isActiveInput = value, formMessage = null, formError = false) }
+    }
+
     fun onImageSelected(uri: Uri, imagePart: MultipartBody.Part) {
         selectedImageUri = uri
         selectedImagePart = imagePart
@@ -119,9 +128,11 @@ class AdminToppingViewModel(
                 priceInput = "",
                 imageUrlInput = "",
                 imagePreview = "",
+                isActiveInput = true,
                 formLoading = false,
                 formMessage = null,
-                formError = false
+                formError = false,
+                deletingToppingId = null
             )
         }
         selectedImagePart = null
@@ -137,9 +148,11 @@ class AdminToppingViewModel(
                 priceInput = topping.price.toString(),
                 imageUrlInput = topping.imageUrl.orEmpty(),
                 imagePreview = topping.imageUrl.orEmpty(),
+                isActiveInput = topping.status == 1,
                 formLoading = false,
                 formMessage = null,
-                formError = false
+                formError = false,
+                deletingToppingId = null
             )
         }
         selectedImagePart = null
@@ -155,6 +168,7 @@ class AdminToppingViewModel(
                 priceInput = "",
                 imageUrlInput = "",
                 imagePreview = "",
+                isActiveInput = true,
                 formLoading = false,
                 formMessage = null,
                 formError = false
@@ -166,6 +180,14 @@ class AdminToppingViewModel(
 
     fun clearMessage() {
         _uiState.update { it.copy(message = null, isError = false) }
+    }
+
+    fun requestDelete(toppingId: Long) {
+        _uiState.update { it.copy(deletingToppingId = toppingId) }
+    }
+
+    fun dismissDeleteDialog() {
+        _uiState.update { it.copy(deletingToppingId = null) }
     }
 
     fun createTopping() {
@@ -198,7 +220,7 @@ class AdminToppingViewModel(
                 val response = repository.createTopping(
                     name = name.toFormPart(),
                     price = price.toString().toFormPart(),
-                    status = "1".toFormPart(),
+                    status = if (state.isActiveInput) "1".toFormPart() else "0".toFormPart(),
                     image = selectedImagePart ?: throw IllegalStateException("Vui long chon anh topping")
                 )
                 if (!response.isSuccessful) {
@@ -215,6 +237,7 @@ class AdminToppingViewModel(
                         priceInput = "",
                         imageUrlInput = "",
                         imagePreview = "",
+                        isActiveInput = true,
                         formLoading = false,
                         formMessage = null,
                         formError = false,
@@ -265,7 +288,7 @@ class AdminToppingViewModel(
                     id = toppingId,
                     name = name.toFormPart(),
                     price = price.toString().toFormPart(),
-                    status = currentStatus.toString().toFormPart(),
+                    status = (if (state.isActiveInput) 1 else 0).toString().toFormPart(),
                     image = selectedImagePart
                 )
                 if (!response.isSuccessful) {
@@ -282,6 +305,7 @@ class AdminToppingViewModel(
                         priceInput = "",
                         imageUrlInput = "",
                         imagePreview = "",
+                        isActiveInput = true,
                         formLoading = false,
                         formMessage = null,
                         formError = false,
@@ -303,7 +327,8 @@ class AdminToppingViewModel(
         }
     }
 
-    fun deleteTopping(toppingId: Long) {
+    fun deleteTopping() {
+        val toppingId = _uiState.value.deletingToppingId ?: return
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
@@ -317,6 +342,7 @@ class AdminToppingViewModel(
                     it.copy(
                         toppings = refreshedToppings,
                         loading = false,
+                        deletingToppingId = null,
                         message = "Xoa topping thanh cong",
                         isError = false
                     )
@@ -325,6 +351,7 @@ class AdminToppingViewModel(
                 _uiState.update {
                     it.copy(
                         loading = false,
+                        deletingToppingId = null,
                         message = "Xoa topping loi: ${e.message ?: "Khong ro"}",
                         isError = true
                     )
@@ -337,7 +364,7 @@ class AdminToppingViewModel(
         val newStatus = if (currentStatus == 1) 0 else 1
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(loading = true, message = null, isError = false) }
+                _uiState.update { it.copy(togglingToppingId = toppingId, message = null, isError = false) }
                 val response = repository.updateToppingStatus(toppingId, newStatus)
                 if (!response.isSuccessful) {
                     throw IllegalStateException(buildApiError("Cap nhat trang thai topping", response))
@@ -346,7 +373,7 @@ class AdminToppingViewModel(
                 _uiState.update { state ->
                     state.copy(
                         toppings = refreshedToppings,
-                        loading = false,
+                        togglingToppingId = null,
                         message = "Cap nhat trang thai topping thanh cong",
                         isError = false
                     )
@@ -354,7 +381,7 @@ class AdminToppingViewModel(
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        loading = false,
+                        togglingToppingId = null,
                         message = "Cap nhat trang thai topping loi: ${e.message ?: "Khong ro"}",
                         isError = true
                     )
@@ -378,25 +405,45 @@ class AdminToppingViewModel(
     }
 
     private fun buildApiError(action: String, response: Response<*>): String {
-        val serverError = response.errorBody()?.string().orEmpty()
-        val normalizedServerError = serverError.lowercase()
-        val friendlyError = when {
-            response.code() == 401 -> "Phien dang nhap het han. Vui long dang nhap lai."
-            response.code() == 403 -> "Tai khoan hien tai khong co quyen thao tac admin."
-            response.code() == 409 && normalizedServerError.contains("topping is in use by products") ->
-                "Topping dang duoc gan voi san pham. Khong the xoa."
-            normalizedServerError.contains("violates foreign key constraint") ||
-                normalizedServerError.contains("is still referenced") ->
-                "Topping dang duoc gan voi san pham. Khong the xoa cung, hay chuyen sang an/vo hieu hoa."
-            normalizedServerError.contains("duplicate") ||
-                normalizedServerError.contains("already exists") ||
-                normalizedServerError.contains("unique") ->
-                "Ten topping da ton tai."
-            else -> null
+        val body = response.errorBody()?.string().orEmpty()
+        val apiError = body.takeIf { it.isNotBlank() }
+            ?.let { runCatching { Gson().fromJson(it, ApiErrorResponse::class.java) }.getOrNull() }
+        val message = apiError?.message.orEmpty()
+        val normalizedMessage = message.lowercase()
+        val normalizedBody = body.lowercase()
+
+        val friendlyError = when (response.code()) {
+            400 -> when {
+                normalizedMessage.contains("image is required") -> "Anh topping la bat buoc khi tao moi."
+                normalizedMessage.contains("max size") || normalizedMessage.contains("5mb") -> "Anh topping vuot qua gioi han 5MB."
+                normalizedMessage.contains("jpg") || normalizedMessage.contains("jpeg") ||
+                    normalizedMessage.contains("png") || normalizedMessage.contains("webp") ||
+                    normalizedMessage.contains("content-type") || normalizedMessage.contains("extension") ->
+                    "Anh topping chi chap nhan jpg, jpeg, png hoac webp."
+                normalizedMessage.isNotBlank() -> message
+                else -> "Du lieu topping khong hop le."
+            }
+            401 -> "Phien dang nhap het han. Vui long dang nhap lai."
+            403 -> "Tai khoan hien tai khong co quyen thao tac admin."
+            404 -> "Khong tim thay topping."
+            409 -> when {
+                normalizedMessage.contains("topping is in use by products") ||
+                    normalizedBody.contains("topping is in use by products") ->
+                    "Topping dang duoc gan voi san pham. Khong the xoa."
+                normalizedMessage.contains("duplicate") ||
+                    normalizedMessage.contains("already exists") ||
+                    normalizedMessage.contains("unique") ||
+                    normalizedBody.contains("duplicate") ||
+                    normalizedBody.contains("already exists") ||
+                    normalizedBody.contains("unique") ->
+                    "Ten topping da ton tai."
+                normalizedMessage.isNotBlank() -> message
+                else -> "Topping dang duoc su dung hoac bi trung du lieu."
+            }
+            else -> message.ifBlank { "$action that bai (${response.code()})" }
         }
 
         return friendlyError
-            ?: ("$action that bai (${response.code()})" + if (serverError.isNotBlank()) ": $serverError" else "")
     }
 
     private fun String.toFormPart() = toRequestBody("text/plain".toMediaType())

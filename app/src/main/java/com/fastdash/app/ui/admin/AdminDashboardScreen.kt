@@ -1,48 +1,40 @@
-package com.fastdash.app.ui.admin
+﻿package com.fastdash.app.ui.admin
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.LocalPizza
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.outlined.TrendingDown
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -50,388 +42,509 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fastdash.app.data.model.response.AdminDashboardSummaryResponse
-import com.fastdash.app.data.repository.AdminDashboardRepository
-import com.fastdash.app.utils.CurrencyUtils
+import com.fastdash.app.viewmodel.AdminDashboardViewModel
+import com.fastdash.app.viewmodel.RevenueComparisonState
+import com.fastdash.app.viewmodel.RevenueAnalyticsUiModel
+import com.fastdash.app.viewmodel.RevenuePoint
+import com.fastdash.app.viewmodel.RevenueRange
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.max
+import kotlin.math.roundToInt
 
-private val PizzaHutRed = Color(0xFFC8102E)
-private val DeepCrust = Color(0xFF24130F)
-private val CharcoalSauce = Color(0xFF3A1E18)
-private val PrimaryBlack = Color(0xFF1C1C1C)
-private val LightBackground = Color(0xFFF6EFE7)
-private val SurfaceWhite = Color.White
-private val SuccessGreen = Color(0xFF27AE60)
-private val WarningGold = Color(0xFFFFB81C)
-private val AdminBlue = Color(0xFF0078AE)
-private val WarmCream = Color(0xFFFFF6EE)
+// Professional Admin Palette
+private val AdminPrimary = Color(0xFFC8102E)
+private val AdminBg = Color(0xFFF9FAFB)
+private val AdminSurface = Color.White
+private val AdminTextPrimary = Color(0xFF111827)
+private val AdminTextSecondary = Color(0xFF6B7280)
+private val AdminBorder = Color(0xFFE5E7EB)
 
-private enum class AdminModule(val title: String, val ready: Boolean) {
-    Products("San pham", true),
-    Categories("Danh muc", true),
-    Orders("Don hang", true),
-    Sizes("Kich thuoc", true),
-    Toppings("Topping", true),
-    Users("Tai khoan", true),
-    Branches("Chi nhanh", true),
-    Payments("Thanh toan", true)
-}
+// Functional Colors
+private val ColorPending = Color(0xFFF59E0B)
+private val ColorSuccess = Color(0xFF10B981)
+private val ColorInfo = Color(0xFF3B82F6)
+private val ColorSecondary = Color(0xFF6366F1)
+private val ColorDanger = Color(0xFFEF4444)
 
 @Composable
 fun AdminDashboardScreen(
+    viewModel: AdminDashboardViewModel,
     onOpenProducts: () -> Unit,
-    onOpenOrders: () -> Unit,
+    onOpenOrders: (filter: String?) -> Unit,
+    onOpenRevenue: () -> Unit,
     onOpenCategories: () -> Unit,
-    onOpenSizes: () -> Unit,
     onOpenToppings: () -> Unit,
-    onOpenUsers: () -> Unit,
+    onOpenCustomers: () -> Unit,
     onOpenBranches: () -> Unit,
     onOpenPayments: () -> Unit,
-    onOpenPlaceholder: (title: String, subtitle: String) -> Unit,
     onLogout: () -> Unit
 ) {
-    val context = LocalContext.current
-    val repository = remember { AdminDashboardRepository(context.applicationContext) }
-
-    var summary by remember { mutableStateOf(AdminDashboardSummaryResponse()) }
-    var loading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        loading = true
-        errorMessage = null
+    LaunchedEffect(Unit) { viewModel.loadSummary() }
+    val uiState by viewModel.uiState.collectAsState()
+    val summary = uiState.summary
+    
+    val todayDate = remember {
         try {
-            val response = repository.getSummary()
-            if (response.isSuccessful) {
-                summary = response.body() ?: AdminDashboardSummaryResponse()
-            } else {
-                errorMessage = "Khong tai duoc tong quan: ${response.code()}"
-            }
+            LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, dd MMMM", Locale("vi", "VN")))
         } catch (e: Exception) {
-            errorMessage = e.message
-        } finally {
-            loading = false
+            "Hôm nay"
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LightBackground)
-            .verticalScroll(rememberScrollState())
+    Scaffold(
+        containerColor = AdminBg
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
+            item {
+                DashboardHeader(
+                    dateLabel = todayDate,
+                    isRefreshing = uiState.isLoading,
+                    onRefresh = viewModel::refresh,
+                    onLogout = onLogout
+                )
+            }
+
+            item {
+                MainRevenueCard(
+                    revenue = summary?.todayRevenue ?: summary?.totalRevenue ?: 0L,
+                    completedCount = summary?.completedOrders ?: 0L,
+                    isLoading = uiState.isLoading,
+                    onDetailClick = onOpenRevenue
+                )
+            }
+
+            item {
+                SectionHeader("Cần xử lý ngay")
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ActionTile("Chờ duyệt", summary?.pendingOrders ?: 0L, Icons.Outlined.NotificationsActive, ColorPending, Modifier.weight(1f), { onOpenOrders("PENDING_CONFIRMATION") })
+                    ActionTile("Chuẩn bị", summary?.preparingOrders ?: 0L, Icons.Outlined.SoupKitchen, ColorSecondary, Modifier.weight(1f), { onOpenOrders("PREPARING") })
+                    ActionTile("Đang giao", summary?.deliveringOrders ?: 0L, Icons.Outlined.LocalShipping, ColorInfo, Modifier.weight(1f), { onOpenOrders("DELIVERING") })
+                }
+            }
+
+            item {
+                SectionHeader("Thống kê hệ thống")
+                StatsGrid(summary)
+            }
+
+            item {
+                SectionHeader("Quản lý danh mục")
+                ManagementShortcuts(onOpenProducts, onOpenCategories, onOpenCustomers, onOpenPayments, onOpenBranches)
+            }
+
+            item {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                    Text("FastDash Admin Console • v1.9", style = MaterialTheme.typography.labelSmall, color = AdminTextSecondary.copy(alpha = 0.4f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardHeader(dateLabel: String, isRefreshing: Boolean, onRefresh: () -> Unit, onLogout: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column {
+            Text("Xin chào, Admin", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = AdminTextPrimary)
+            Text(dateLabel, style = MaterialTheme.typography.bodyMedium, color = AdminTextSecondary)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(modifier = Modifier.size(44.dp).clickable { if (!isRefreshing) onRefresh() }, shape = CircleShape, color = AdminSurface, border = BorderStroke(1.dp, AdminBorder)) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (isRefreshing) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = AdminPrimary)
+                    else Icon(Icons.Default.Refresh, null, tint = AdminTextPrimary, modifier = Modifier.size(20.dp))
+                }
+            }
+            ProfileAvatarMenu(onLogout)
+        }
+    }
+}
+
+@Composable
+private fun MainRevenueCard(revenue: Long, completedCount: Long, isLoading: Boolean, onDetailClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().shadow(12.dp, RoundedCornerShape(24.dp), ambientColor = Color.Black.copy(alpha = 0.1f)),
+        shape = RoundedCornerShape(24.dp), color = Color(0xFF111827)
     ) {
-        AdminHeader()
-
-        if (loading) {
-            Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = PizzaHutRed)
+        Column(modifier = Modifier.clickable { onDetailClick() }.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Doanh thu hôm nay", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    if (isLoading) Text("...", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                    else Text(com.fastdash.app.utils.CurrencyUtils.formatVnd(revenue.toDouble()), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                }
+                Box(modifier = Modifier.size(48.dp).background(Color.White.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(Icons.AutoMirrored.Outlined.TrendingUp, null, tint = ColorSuccess, modifier = Modifier.size(24.dp))
+                }
             }
-        } else {
-            AdminStatsGrid(summary)
-
-            errorMessage?.let {
-                Spacer(Modifier.height(12.dp))
-                DashboardInfoCard("Loi tai du lieu", it, WarningGold)
-            }
-
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "DIEU HUONG NHANH",
-                modifier = Modifier.padding(horizontal = 20.dp),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = CharcoalSauce.copy(alpha = 0.72f)
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            ModuleGrid(
-                onModuleClick = { module ->
-                    when (module) {
-                        AdminModule.Products -> onOpenProducts()
-                        AdminModule.Categories -> onOpenCategories()
-                        AdminModule.Orders -> onOpenOrders()
-                        AdminModule.Sizes -> onOpenSizes()
-                        AdminModule.Toppings -> onOpenToppings()
-                        AdminModule.Users -> onOpenUsers()
-                        AdminModule.Branches -> onOpenBranches()
-                        AdminModule.Payments -> onOpenPayments()
-                        else -> onOpenPlaceholder(module.title, "Module admin san sang ket noi backend")
+            Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), color = Color.White.copy(alpha = 0.05f)) {
+                Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Đã hoàn thành $completedCount đơn", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Báo cáo", color = ColorSuccess, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = ColorSuccess, modifier = Modifier.size(14.dp))
                     }
                 }
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            Button(
-                onClick = onLogout,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("DANG XUAT HE THONG", fontWeight = FontWeight.ExtraBold)
             }
-
-            Spacer(Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
-private fun AdminHeader() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(DeepCrust, CharcoalSauce, PizzaHutRed)
-                )
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = Color.White.copy(alpha = 0.14f)
-            ) {
-                Text(
-                    "FASTDASH ADMIN",
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WarmCream
-                )
-            }
-            Text("Godfather Console", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Color.White)
-            Text(
-                "Theo doi doanh thu, van hanh va dieu huong mon an tren cung mot man hinh.",
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-                color = WarmCream.copy(alpha = 0.88f)
-            )
+private fun ActionTile(label: String, count: Long, icon: ImageVector, color: Color, modifier: Modifier, onClick: () -> Unit) {
+    Surface(modifier = modifier.clickable { onClick() }, color = AdminSurface, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, AdminBorder)) {
+        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(modifier = Modifier.size(40.dp).background(color.copy(alpha = 0.12f), CircleShape), contentAlignment = Alignment.Center) { Icon(icon, null, tint = color, modifier = Modifier.size(20.dp)) }
+            Text(count.toString(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = AdminTextPrimary)
+            Text(label.uppercase(), color = AdminTextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
         }
     }
 }
 
 @Composable
-private fun AdminStatsGrid(stats: AdminDashboardSummaryResponse) {
-    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-        ) {
-            Box(
-                modifier = Modifier
-                    .background(
-                        brush = Brush.linearGradient(
-                            colors = listOf(DeepCrust, CharcoalSauce, PizzaHutRed)
-                        )
-                    )
-            ) {
-                Row(modifier = Modifier.padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Surface(shape = RoundedCornerShape(999.dp), color = Color.White.copy(alpha = 0.12f)) {
-                            Text(
-                                "TONG DOANH THU",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                                color = WarmCream,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+private fun StatsGrid(summary: AdminDashboardSummaryResponse?) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatItem("Đơn hàng", (summary?.totalOrders ?: 0).toString(), Icons.Outlined.Receipt, AdminPrimary, Modifier.weight(1f))
+            StatItem("Khách hàng", (summary?.totalUsers ?: 0).toString(), Icons.Outlined.PeopleAlt, ColorInfo, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            StatItem("Sản phẩm", (summary?.totalProducts ?: 0).toString(), Icons.Outlined.Inventory2, ColorSuccess, Modifier.weight(1f))
+            StatItem("Hủy bỏ", (summary?.cancelledOrders ?: 0).toString(), Icons.Outlined.Cancel, AdminTextSecondary, Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun StatItem(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier) {
+    Surface(modifier = modifier, color = AdminSurface, shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, AdminBorder)) {
+        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(modifier = Modifier.size(36.dp).background(color.copy(alpha = 0.08f), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = color, modifier = Modifier.size(18.dp)) }
+            Column {
+                Text(value, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = AdminTextPrimary)
+                Text(label, fontSize = 11.sp, color = AdminTextSecondary, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ManagementShortcuts(onProd: () -> Unit, onCat: () -> Unit, onCust: () -> Unit, onPay: () -> Unit, onBr: () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ShortcutRow("Thực đơn món ăn", "Danh sách & giá bán", Icons.Outlined.Fastfood, AdminPrimary, onProd)
+        ShortcutRow("Danh mục & Topping", "Phân loại sản phẩm", Icons.Outlined.Category, ColorInfo, onCat)
+        ShortcutRow("Người dùng hệ thống", "Khách hàng & tài khoản", Icons.Outlined.Group, ColorSuccess, onCust)
+        ShortcutRow("Giao dịch thanh toán", "Lịch sử & doanh thu", Icons.Outlined.AccountBalanceWallet, ColorPending, onPay)
+        ShortcutRow("Chi nhánh cửa hàng", "Vị trí & nhân sự", Icons.Outlined.Storefront, ColorSecondary, onBr)
+    }
+}
+
+@Composable
+private fun ShortcutRow(title: String, subtitle: String, icon: ImageVector, accent: Color, onClick: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable { onClick() }, color = AdminSurface, shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, AdminBorder)) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(modifier = Modifier.size(44.dp).background(accent.copy(alpha = 0.1f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = accent, modifier = Modifier.size(22.dp)) }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = AdminTextPrimary)
+                Text(subtitle, fontSize = 12.sp, color = AdminTextSecondary)
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = AdminBorder, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun ProfileAvatarMenu(onLogout: () -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Surface(modifier = Modifier.size(44.dp).clickable { expanded = true }, shape = CircleShape, color = AdminPrimary) {
+            Box(contentAlignment = Alignment.Center) { Text("A", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp) }
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.background(AdminSurface).width(180.dp), shape = RoundedCornerShape(16.dp)) {
+            DropdownMenuItem(text = { Text("Đăng xuất", fontWeight = FontWeight.Bold, color = AdminPrimary) }, onClick = { expanded = false; onLogout() }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.ExitToApp, null, tint = AdminPrimary) })
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(text = text, modifier = Modifier.padding(bottom = 4.dp), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AdminTextPrimary)
+}
+
+@Composable
+fun SectionLabel(text: String) {
+    Text(text = text.uppercase(), modifier = Modifier.padding(bottom = 4.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = AdminTextSecondary)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AdminRevenueScreen(
+    viewModel: AdminDashboardViewModel,
+    onBack: () -> Unit,
+    onOpenCompletedOrders: () -> Unit,
+    onOpenPayments: () -> Unit
+) {
+    LaunchedEffect(Unit) {
+        viewModel.loadSummary()
+        viewModel.loadRevenueAnalytics(force = true)
+    }
+    val uiState by viewModel.uiState.collectAsState()
+    val summary = uiState.summary
+    val analytics = uiState.revenueAnalytics
+    var selectedPoint by remember(analytics.range, analytics.points) {
+        mutableStateOf(analytics.points.maxByOrNull { it.revenue } ?: analytics.points.firstOrNull())
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Báo cáo doanh thu", fontWeight = FontWeight.ExtraBold) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AdminBg)
+            )
+        },
+        containerColor = AdminBg
+    ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            RevenueRangeSelector(analytics.range) { viewModel.loadRevenueAnalytics(range = it, force = true) }
+            RevenueHeroCard(analytics, uiState.isRevenueLoading)
+            RevenueChartCard(analytics, selectedPoint, uiState.isRevenueLoading) { selectedPoint = it }
+
+            SectionLabel("Hiệu suất vận hành")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PerformanceMetric("AOV (TB/Đơn)", formatCurrencyVnd(analytics.averageOrderValue), ColorInfo, Modifier.weight(1f))
+                PerformanceMetric("Tỷ lệ hoàn tất", formatPercent(analytics.completionRate), ColorSuccess, Modifier.weight(1f))
+            }
+
+            SectionLabel("Phân tích chi tiết")
+            Surface(color = AdminSurface, shape = RoundedCornerShape(24.dp), border = BorderStroke(1.dp, AdminBorder)) {
+                Column(modifier = Modifier.padding(4.dp)) {
+                    DetailRowItem("Tổng số đơn", (summary?.totalOrders ?: 0).toString(), Icons.Outlined.Receipt)
+                    HorizontalDivider(color = AdminBorder.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp))
+                    DetailRowItem("Đơn hoàn tất", analytics.totalCompletedOrders.toString(), Icons.Outlined.CheckCircle)
+                    HorizontalDivider(color = AdminBorder.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp))
+                    DetailRowItem("Đỉnh doanh thu", formatCurrencyVnd(analytics.peakRevenue), Icons.Outlined.Bolt)
+                    HorizontalDivider(color = AdminBorder.copy(alpha = 0.5f), modifier = Modifier.padding(horizontal = 16.dp))
+                    DetailRowItem("Đơn đã hủy", (summary?.cancelledOrders ?: 0).toString(), Icons.Outlined.Cancel)
+                }
+            }
+
+            Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onOpenCompletedOrders, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary)) { Text("Lịch sử đơn", fontWeight = FontWeight.Bold) }
+                OutlinedButton(onClick = onOpenPayments, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.5.dp, AdminPrimary)) { Text("Giao dịch", color = AdminPrimary, fontWeight = FontWeight.Bold) }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun RevenueRangeSelector(selectedRange: RevenueRange, onRangeSelected: (RevenueRange) -> Unit) {
+    Surface(color = AdminSurface, shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, AdminBorder)) {
+        Row(modifier = Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            RevenueRange.entries.forEach { range ->
+                val sel = selectedRange == range
+                Surface(modifier = Modifier.weight(1f).clickable { onRangeSelected(range) }, color = if (sel) AdminPrimary else Color.Transparent, shape = RoundedCornerShape(12.dp)) {
+                    Text(text = range.label, modifier = Modifier.padding(vertical = 9.dp), textAlign = TextAlign.Center, color = if (sel) Color.White else AdminTextSecondary, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RevenueHeroCard(analytics: RevenueAnalyticsUiModel, isLoading: Boolean) {
+    val trendColor = when (analytics.comparisonState) {
+        RevenueComparisonState.UP -> ColorSuccess
+        RevenueComparisonState.DOWN -> ColorDanger
+        RevenueComparisonState.FLAT -> ColorInfo
+        else -> Color.White.copy(alpha = 0.6f)
+    }
+    Surface(modifier = Modifier.fillMaxWidth(), color = Color(0xFF111827), shape = RoundedCornerShape(24.dp)) {
+        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Tổng doanh thu ${analytics.range.label.lowercase()}", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    if (isLoading) Text("...", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                    else Text(formatCurrencyVnd(analytics.totalRevenue), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                }
+                Surface(shape = RoundedCornerShape(12.dp), color = trendColor.copy(alpha = 0.15f)) {
+                    Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(if (analytics.trendPercent >= 0) Icons.AutoMirrored.Outlined.TrendingUp else Icons.AutoMirrored.Outlined.TrendingDown, null, tint = trendColor, modifier = Modifier.size(14.dp))
+                        Text(formatPercent(analytics.trendPercent), color = trendColor, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                    }
+                }
+            }
+            Text(text = analytics.trendLabel, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+        }
+    }
+}
+
+@Composable
+private fun RevenueChartCard(analytics: RevenueAnalyticsUiModel, selectedPoint: RevenuePoint?, isLoading: Boolean, onPointSelected: (RevenuePoint) -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth(), color = AdminSurface, shape = RoundedCornerShape(24.dp), border = BorderStroke(1.dp, AdminBorder)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("Biểu đồ doanh thu", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                    Text("Chạm hoặc kéo để xem chi tiết", style = MaterialTheme.typography.bodySmall, color = AdminTextSecondary)
+                }
+                if (!isLoading && analytics.points.isNotEmpty()) {
+                    Surface(color = AdminBg, shape = CircleShape) {
+                        Text(if (analytics.peakRevenue > 0L) "Đỉnh: ${formatCompactMoney(analytics.peakRevenue)}" else "${analytics.totalCompletedOrders} đơn", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminPrimary)
+                    }
+                }
+            }
+            if (isLoading) Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = AdminPrimary) }
+            else if (analytics.points.isEmpty()) Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { Text("Chưa có dữ liệu", color = AdminTextSecondary) }
+            else RevenueChart(points = analytics.points, color = AdminPrimary, onPointSelected = onPointSelected)
+            
+            if (!isLoading && selectedPoint != null) {
+                Surface(modifier = Modifier.fillMaxWidth(), color = AdminBg, shape = RoundedCornerShape(12.dp)) {
+                    Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text(selectedPoint.detailLabel, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text("${selectedPoint.orderCount} đơn hàng", fontSize = 11.sp, color = AdminTextSecondary)
                         }
-                        Text(
-                            CurrencyUtils.formatVnd(stats.totalRevenue),
-                            color = WarningGold,
-                            fontSize = 30.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Text(
-                            "Tap trung vao don dang cho va module ban chay de day toc do xu ly.",
-                            color = WarmCream.copy(alpha = 0.82f),
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(Color.White.copy(alpha = 0.12f))
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.TrendingUp,
-                            contentDescription = null,
-                            tint = WarningGold,
-                            modifier = Modifier.height(44.dp)
-                        )
+                        Text(formatCurrencyVnd(selectedPoint.revenue), fontWeight = FontWeight.Black, color = AdminPrimary, fontSize = 14.sp)
                     }
                 }
             }
         }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            StatSmallCard(Modifier.weight(1f), "Don Hang", stats.totalOrders.toString(), Icons.Default.ShoppingCart, PizzaHutRed)
-            StatSmallCard(Modifier.weight(1f), "San Pham", stats.totalProducts.toString(), Icons.Default.LocalPizza, SuccessGreen)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            StatSmallCard(Modifier.weight(1f), "Nguoi Dung", stats.totalUsers.toString(), Icons.Default.People, WarningGold)
-            StatSmallCard(Modifier.weight(1f), "Dang Cho", stats.pendingOrders.toString(), Icons.Default.Payments, AdminBlue)
-        }
     }
 }
 
 @Composable
-private fun StatSmallCard(modifier: Modifier, title: String, value: String, icon: ImageVector, color: Color) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(SurfaceWhite, WarmCream)
-                    )
-                )
-                .padding(16.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(color.copy(alpha = 0.12f))
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-            ) {
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.height(22.dp))
+private fun RevenueChart(points: List<RevenuePoint>, color: Color, onPointSelected: (RevenuePoint) -> Unit) {
+    val maxVal = (points.maxOfOrNull { it.revenue } ?: 0L).coerceAtLeast(1L)
+    val yGuides = listOf(maxVal, maxVal / 2, 0L)
+    var touchX by remember { mutableStateOf<Float?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.height(180.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.End) {
+                yGuides.forEach { Text(text = formatCompactMoney(it), color = AdminTextSecondary.copy(alpha = 0.6f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
             }
-            Spacer(Modifier.height(14.dp))
-            Text(value, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryBlack)
-            Text(title.uppercase(), fontSize = 11.sp, color = CharcoalSauce.copy(alpha = 0.7f), fontWeight = FontWeight.Bold)
-        }
-    }
-}
+            Box(modifier = Modifier.weight(1f).height(180.dp)
+                .pointerInput(points) {
+                    detectTapGestures(
+                        onPress = { offset -> touchX = offset.x; try { awaitRelease() } finally { touchX = null } },
+                        onTap = { offset ->
+                            val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+                            val index = (offset.x / stepX).roundToInt().coerceIn(0, points.lastIndex)
+                            onPointSelected(points[index])
+                        }
+                    )
+                }
+                .pointerInput(points) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset -> touchX = offset.x },
+                        onDragEnd = { touchX = null },
+                        onDragCancel = { touchX = null },
+                        onHorizontalDrag = { change, _ ->
+                            touchX = change.position.x
+                            val stepX = size.width / (points.size - 1).coerceAtLeast(1)
+                            val index = (change.position.x / stepX).roundToInt().coerceIn(0, points.lastIndex)
+                            onPointSelected(points[index])
+                        }
+                    )
+                }
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val width = size.width
+                    val height = size.height
+                    val topPadding = 12.dp.toPx()
+                    val bottomPadding = 4.dp.toPx()
+                    val usableHeight = height - topPadding - bottomPadding
+                    val stepX = if (points.size > 1) width / (points.size - 1) else 0f
 
-@Composable
-private fun ModuleGrid(onModuleClick: (AdminModule) -> Unit) {
-    val modules = AdminModule.entries
-    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        modules.chunked(3).forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                row.forEach { module ->
-                    val accent = when (module) {
-                        AdminModule.Products -> PizzaHutRed
-                        AdminModule.Categories -> WarningGold
-                        AdminModule.Orders -> DeepCrust
-                        AdminModule.Sizes -> SuccessGreen
-                        AdminModule.Toppings -> AdminBlue
-                        AdminModule.Users -> CharcoalSauce
-                        AdminModule.Branches -> Color(0xFFCC5C2E)
-                        AdminModule.Payments -> Color(0xFF8F3DFF)
+                    yGuides.forEachIndexed { i, _ ->
+                        val y = topPadding + (usableHeight / (yGuides.size - 1)) * i
+                        drawLine(color = AdminBorder.copy(alpha = 0.3f), start = Offset(0f, y), end = Offset(width, y), strokeWidth = 1.dp.toPx())
                     }
-                    val icon = when (module) {
-                        AdminModule.Products -> Icons.Default.LocalPizza
-                        AdminModule.Categories -> Icons.Default.Storefront
-                        AdminModule.Orders -> Icons.Default.ShoppingCart
-                        AdminModule.Sizes -> Icons.Default.TrendingUp
-                        AdminModule.Toppings -> Icons.Default.Payments
-                        AdminModule.Users -> Icons.Default.People
-                        AdminModule.Branches -> Icons.Default.Storefront
-                        AdminModule.Payments -> Icons.Default.Payments
-                    }
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(1f)
-                            .clickable { onModuleClick(module) },
-                        shape = RoundedCornerShape(22.dp),
-                        color = SurfaceWhite,
-                        shadowElevation = 0.dp
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier
-                                .background(
-                                    brush = Brush.verticalGradient(
-                                        colors = listOf(Color.White, accent.copy(alpha = 0.08f))
-                                    )
-                                )
-                                .padding(12.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .background(accent.copy(alpha = 0.12f))
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(icon, contentDescription = null, tint = accent)
-                            }
-                            Spacer(Modifier.height(10.dp))
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    module.title,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    color = PrimaryBlack,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("Mo", fontSize = 11.sp, color = accent, fontWeight = FontWeight.Bold)
-                                    Icon(Icons.Default.ArrowForward, contentDescription = null, tint = accent, modifier = Modifier.height(12.dp))
-                                }
-                            }
+
+                    if (points.size > 1) {
+                        val linePath = Path()
+                        val areaPath = Path()
+                        val conX = stepX * 0.35f
+                        val firstY = topPadding + usableHeight - (points[0].revenue.toFloat() / maxVal) * usableHeight
+                        linePath.moveTo(0f, firstY)
+                        areaPath.moveTo(0f, height)
+                        areaPath.lineTo(0f, firstY)
+
+                        for (i in 1 until points.size) {
+                            val prevX = stepX * (i - 1)
+                            val prevY = topPadding + usableHeight - (points[i - 1].revenue.toFloat() / maxVal) * usableHeight
+                            val currX = stepX * i
+                            val currY = topPadding + usableHeight - (points[i].revenue.toFloat() / maxVal) * usableHeight
+                            linePath.cubicTo(prevX + conX, prevY, currX - conX, currY, currX, currY)
+                            areaPath.cubicTo(prevX + conX, prevY, currX - conX, currY, currX, currY)
+                        }
+                        areaPath.lineTo(width, height)
+                        areaPath.close()
+
+                        drawPath(path = areaPath, brush = Brush.verticalGradient(listOf(color.copy(alpha = 0.2f), Color.Transparent), startY = topPadding, endY = height), style = Fill)
+                        drawPath(path = linePath, color = color, style = Stroke(width = 3.5.dp.toPx(), cap = StrokeCap.Round))
+
+                        touchX?.let { x ->
+                            val index = (x.coerceIn(0f, width) / stepX).roundToInt().coerceIn(0, points.lastIndex)
+                            val centerX = index * stepX
+                            val centerY = topPadding + usableHeight - (points[index].revenue.toFloat() / maxVal) * usableHeight
+                            drawLine(color = color.copy(alpha = 0.4f), start = Offset(centerX, topPadding), end = Offset(centerX, height), strokeWidth = 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f)))
+                            drawCircle(color = color, radius = 6.dp.toPx(), center = Offset(centerX, centerY))
+                            drawCircle(color = Color.White, radius = 3.dp.toPx(), center = Offset(centerX, centerY))
                         }
                     }
                 }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
             }
+        }
+        Row(modifier = Modifier.padding(start = 44.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            val step = if (points.size > 8) points.size / 4 else 1
+            points.forEachIndexed { i, p -> if (i % step == 0 || i == points.lastIndex) Text(p.label, color = AdminTextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
         }
     }
 }
 
 @Composable
-private fun DashboardInfoCard(title: String, subtitle: String, accentColor: Color) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-        shape = RoundedCornerShape(24.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(accentColor.copy(alpha = 0.08f), SurfaceWhite)
-                    )
-                )
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(shape = RoundedCornerShape(10.dp), color = accentColor.copy(alpha = 0.1f)) {
-                Text(
-                    text = title,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    color = accentColor,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
-                )
-            }
-            Text(text = subtitle, color = PrimaryBlack, fontSize = 13.sp, lineHeight = 18.sp)
+private fun PerformanceMetric(label: String, value: String, color: Color, modifier: Modifier) {
+    Surface(modifier = modifier, color = AdminSurface, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, AdminBorder)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(modifier = Modifier.size(32.dp).background(color.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Analytics, null, tint = color, modifier = Modifier.size(16.dp)) }
+            Text(value, fontWeight = FontWeight.Black, fontSize = 16.sp, color = AdminTextPrimary)
+            Text(label, fontSize = 11.sp, color = AdminTextSecondary, fontWeight = FontWeight.Bold)
         }
     }
+}
+
+@Composable
+private fun DetailRowItem(label: String, value: String, icon: ImageVector) {
+    Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(icon, null, tint = AdminTextSecondary, modifier = Modifier.size(20.dp))
+            Text(label, color = AdminTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        }
+        Text(value, fontWeight = FontWeight.Black, color = AdminTextPrimary, fontSize = 15.sp)
+    }
+}
+
+private fun formatCurrencyVnd(value: Long): String = com.fastdash.app.utils.CurrencyUtils.formatVnd(value.toDouble())
+private fun formatPercent(value: Float): String = if (value % 1f == 0f) "${value.toInt()}%" else String.format(Locale.US, "%.1f%%", value)
+private fun formatCompactMoney(value: Long): String = when {
+    value >= 1_000_000_000L -> String.format(Locale.US, "%.1fB", value / 1_000_000_000f)
+    value >= 1_000_000L -> String.format(Locale.US, "%.1fM", value / 1_000_000f)
+    value >= 1_000L -> String.format(Locale.US, "%.0fK", value / 1_000f)
+    else -> value.toString()
+}
+
+private fun String.toVietnamese(): String = when (this) {
+    "Theo khung gio trong ngay" -> "Theo khung giờ trong ngày"
+    "7 ngay gan nhat" -> "7 ngày gần nhất"
+    "Theo tung tuan trong thang" -> "Theo từng tuần trong tháng"
+    else -> this
 }

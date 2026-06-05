@@ -1,9 +1,11 @@
 package com.fastdash.app.data.remote.api
 
 import com.fastdash.app.data.model.response.AdminDashboardSummaryResponse
+import com.fastdash.app.data.model.response.AdminOrderDetailResponse
+import com.fastdash.app.data.model.response.AdminOrdersPageResponse
 import com.fastdash.app.data.model.response.AdminOrderSummaryResponse
 import com.fastdash.app.data.model.response.AdminPageResponse
-import com.fastdash.app.data.model.response.OrderResponse
+import com.fastdash.app.data.model.response.RevenueReportResponse
 import com.google.gson.annotations.SerializedName
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -124,14 +126,14 @@ interface AdminPaymentApi {
 }
 
 data class AdminPaymentResponse(
-    val id: Long,
-    val orderId: Long,
-    val amount: Double,
-    val method: String,
-    val status: String,
+    val id: Long = 0L,
+    val orderId: Long = 0L,
+    val amount: Double = 0.0,
+    val method: String? = null,
+    val status: String? = null,
     val transactionCode: String? = null,
     val paidAt: String? = null,
-    val createdAt: String
+    val createdAt: String? = null
 )
 
 interface AdminOrderStatusApi {
@@ -139,27 +141,41 @@ interface AdminOrderStatusApi {
      suspend fun updateOrderStatus(
          @Path("id") id: Long,
          @Body request: UpdateOrderStatusRequest
-     ): Response<OrderResponse>
+     ): Response<AdminOrderDetailResponse>
 }
 
 interface AdminOrderApi {
     @GET("api/v1/admin/orders")
-    suspend fun getOrders(
+    suspend fun getAdminOrders(
         @Query("page") page: Int? = null,
         @Query("size") size: Int? = null,
         @Query("status") status: String? = null,
         @Query("keyword") keyword: String? = null,
         @Query("fromDate") fromDate: String? = null,
-        @Query("toDate") toDate: String? = null
-    ): Response<AdminPageResponse<AdminOrderSummaryResponse>>
+        @Query("toDate") toDate: String? = null,
+        @Query("sort") sort: String? = "createdAt,desc"
+    ): Response<AdminOrdersPageResponse>
 
     @GET("api/v1/admin/orders/{id}")
-    suspend fun getOrderDetail(@Path("id") id: Long): Response<OrderResponse>
+    suspend fun getAdminOrderDetail(@Path("id") id: Long): Response<AdminOrderDetailResponse>
+
+    @PUT("api/v1/admin/orders/{id}/status")
+    suspend fun updateAdminOrderStatus(
+        @Path("id") id: Long,
+        @Body request: UpdateOrderStatusRequest
+    ): Response<AdminOrderDetailResponse>
 }
 
 interface AdminDashboardApi {
     @GET("api/v1/admin/dashboard/summary")
-    suspend fun getSummary(): Response<AdminDashboardSummaryResponse>
+    suspend fun getAdminDashboardSummary(): Response<AdminDashboardSummaryResponse>
+
+    @GET("api/v1/admin/revenue-report")
+    suspend fun getRevenueReport(
+        @Query("period") period: String? = null,
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null
+    ): Response<RevenueReportResponse>
 }
 
 data class UpdateOrderStatusRequest(

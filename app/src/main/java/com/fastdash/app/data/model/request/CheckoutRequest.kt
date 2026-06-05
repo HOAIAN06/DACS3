@@ -33,7 +33,7 @@ data class CheckoutRequest(
     @SerializedName("note")
     val note: String? = null,
     @SerializedName("paymentMethod")
-    val paymentMethod: String = "COD",
+    val paymentMethod: String = "CASH",
     @Transient
     val branchName: String? = null,
     @Transient

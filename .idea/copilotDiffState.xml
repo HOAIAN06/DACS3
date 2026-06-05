@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/app/src/main/java/com/fastdash/app/data/repository/AdminCategoryRepository.kt">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/app/src/main/java/com/fastdash/app/data/repository/AdminCategoryRepository.kt" />
+              <option name="updatedContent" value="package com.fastdash.app.data.repository&#10;&#10;import android.content.Context&#10;import com.fastdash.app.data.remote.retrofit.RetrofitClient&#10;import okhttp3.MultipartBody&#10;import okhttp3.RequestBody&#10;&#10;class AdminCategoryRepository(context: Context) {&#10;    private val api = RetrofitClient.adminCategoryApi(context.applicationContext)&#10;&#10;    suspend fun getCategories() = api.getCategories()&#10;&#10;    suspend fun createCategory(&#10;        name: RequestBody,&#10;        description: RequestBody,&#10;        status: RequestBody,&#10;        image: MultipartBody.Part&#10;    ) = api.createCategory(name, description, status, image)&#10;&#10;    suspend fun updateCategory(&#10;        id: Long,&#10;        name: RequestBody,&#10;        description: RequestBody,&#10;        status: RequestBody,&#10;        image: MultipartBody.Part?&#10;    ) = api.updateCategory(id, name, description, status, image)&#10;&#10;    suspend fun deleteCategory(id: Long) = api.deleteCategory(id)&#10;&#10;    suspend fun updateCategoryStatus(id: Long, status: Int) = api.updateCategoryStatus(id, status)&#10;}&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/app/src/main/java/com/fastdash/app/data/repository/AdminOrderRepository.kt">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/app/src/main/java/com/fastdash/app/data/repository/AdminOrderRepository.kt" />
+              <option name="updatedContent" value="package com.fastdash.app.data.repository&#10;&#10;import android.content.Context&#10;import com.fastdash.app.data.remote.retrofit.RetrofitClient&#10;&#10;class AdminOrderRepository(context: Context) {&#10;    private val api = RetrofitClient.adminOrderApi(context)&#10;&#10;    suspend fun getOrders(&#10;        status: String? = null,&#10;        keyword: String? = null,&#10;        fromDate: String? = null,&#10;        toDate: String? = null,&#10;        page: Int = 0,&#10;        size: Int = 10,&#10;        sort: String = &quot;createdAt,desc&quot;&#10;    ) = api.getOrders(&#10;        page = page,&#10;        size = size,&#10;        status = status,&#10;        keyword = keyword,&#10;        fromDate = fromDate,&#10;        toDate = toDate,&#10;        sort = sort&#10;    )&#10;&#10;    suspend fun getOrderDetail(id: Long) = api.getOrderDetail(id)&#10;&#10;    suspend fun updateOrderStatus(id: Long, status: String) =&#10;        api.updateOrderStatus(id, com.fastdash.app.data.remote.api.UpdateOrderStatusRequest(status))&#10;}&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/app/src/main/java/com/fastdash/app/data/repository/AdminSizeRepository.kt">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/app/src/main/java/com/fastdash/app/data/repository/AdminSizeRepository.kt" />
+              <option name="updatedContent" value="package com.fastdash.app.data.repository&#10;&#10;import android.content.Context&#10;import com.fastdash.app.data.remote.api.CreateSizeRequest&#10;import com.fastdash.app.data.remote.retrofit.RetrofitClient&#10;&#10;class AdminSizeRepository(context: Context) {&#10;    private val api = RetrofitClient.adminSizeApi(context.applicationContext)&#10;&#10;    suspend fun getSizesByProduct(productId: Long) = api.getSizesByProduct(productId)&#10;&#10;    suspend fun createSize(productId: Long, request: CreateSizeRequest) =&#10;        api.createSize(productId, request)&#10;&#10;    suspend fun updateSize(sizeId: Long, request: CreateSizeRequest) =&#10;        api.updateSize(sizeId, request)&#10;&#10;    suspend fun deleteSize(sizeId: Long) = api.deleteSize(sizeId)&#10;&#10;    suspend fun updateSizeStatus(sizeId: Long, status: Int) = api.updateSizeStatus(sizeId, status)&#10;}&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

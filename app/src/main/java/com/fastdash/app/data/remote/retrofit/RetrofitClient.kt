@@ -18,6 +18,7 @@ import com.fastdash.app.data.remote.api.AdminSizeApi
 import com.fastdash.app.data.remote.api.AdminPaymentApi
 import com.fastdash.app.data.remote.api.AdminOrderStatusApi
 import com.fastdash.app.data.remote.api.AdminCategoryApi
+import com.fastdash.app.data.remote.api.AdminCustomerApi
 import com.fastdash.app.data.remote.api.AdminProductApiExtended
 import com.fastdash.app.data.remote.api.AdminOrderApi
 import com.fastdash.app.data.remote.api.AdminDashboardApi
@@ -98,6 +99,10 @@ object RetrofitClient {
 
 	fun adminUserApi(context: Context): AdminUserApi {
 		return getRetrofit(context).create(AdminUserApi::class.java)
+	}
+
+	fun adminCustomerApi(context: Context): AdminCustomerApi {
+		return getRetrofit(context).create(AdminCustomerApi::class.java)
 	}
 
 	fun adminBranchApi(context: Context): AdminBranchApi {

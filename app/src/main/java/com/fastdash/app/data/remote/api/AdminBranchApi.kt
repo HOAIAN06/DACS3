@@ -1,5 +1,7 @@
 package com.fastdash.app.data.remote.api
 
+import com.fastdash.app.data.model.response.BranchResponse
+import com.google.gson.annotations.SerializedName
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -33,23 +35,23 @@ interface AdminBranchApi {
      ): Response<BranchResponse>
 }
 
-data class BranchResponse(
-    val id: Long,
-    val name: String,
-    val address: String,
-    val phone: String,
-    val openTime: String? = null,
-    val closeTime: String? = null,
-    val status: Int,
-    val createdAt: String
-)
-
 data class CreateBranchRequest(
+    @SerializedName("name")
     val name: String,
+    @SerializedName("address")
     val address: String,
+    @SerializedName("phone")
     val phone: String,
+    @SerializedName("openTime")
     val openTime: String? = null,
-    val closeTime: String? = null
+    @SerializedName("closeTime")
+    val closeTime: String? = null,
+    @SerializedName("latitude")
+    val latitude: Double? = null,
+    @SerializedName("longitude")
+    val longitude: Double? = null,
+    @SerializedName("status")
+    val status: Int = 1
 )
 
 data class UpdateStatusRequest(

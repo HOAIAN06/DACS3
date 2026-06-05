@@ -147,14 +147,7 @@ fun CartScreen(
 private fun CartHeader(itemCount: Int, onBack: () -> Unit) {
     TopAppBar(
         title = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Giỏ hàng", fontWeight = FontWeight.ExtraBold, color = PrimaryBlack)
-                Text(
-                    if (itemCount > 0) "$itemCount món đã chọn" else "Kiểm tra món trước khi thanh toán",
-                    fontSize = 12.sp,
-                    color = TextGrey
-                )
-            }
+            Text("Giỏ hàng", fontWeight = FontWeight.ExtraBold, color = PrimaryBlack)
         },
         navigationIcon = {
             IconButton(onClick = onBack) {
@@ -205,10 +198,7 @@ private fun CartItemCard(
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 CartQuantitySelector(quantity = item.quantity, onDecrease = onDecrease, onIncrease = onIncrease, canDecrease = item.quantity > 1)
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Thành tiền", fontSize = 12.sp, color = TextGrey)
-                    Text(CurrencyUtils.formatVnd(item.totalPrice), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = FastDashRed)
-                }
+                Text(CurrencyUtils.formatVnd(item.totalPrice), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = FastDashRed)
             }
         }
     }
@@ -262,7 +252,7 @@ private fun OrderSummaryCard(subtotal: Double) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Outlined.ReceiptLong, contentDescription = null, tint = FastDashRed)
-                Text("Tạm tính đơn hàng", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = PrimaryBlack)
+                Text("Chi tiết đơn hàng", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = PrimaryBlack)
             }
             SummaryRow("Tạm tính", CurrencyUtils.formatVnd(subtotal), highlight = true)
         }
@@ -318,7 +308,7 @@ private fun EmptyCartState(onBrowseMenu: () -> Unit) {
         Spacer(Modifier.height(16.dp))
         Text("Giỏ hàng đang trống", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryBlack)
         Spacer(Modifier.height(8.dp))
-        Text("Thêm món ngon vào giỏ để bắt đầu đặt hàng", color = TextGrey, fontSize = 14.sp)
+        Text("Thêm món để bắt đầu", color = TextGrey, fontSize = 14.sp)
         Spacer(Modifier.height(18.dp))
         Button(onClick = onBrowseMenu, colors = ButtonDefaults.buttonColors(containerColor = FastDashRed, contentColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Text("Xem thực đơn", fontWeight = FontWeight.Bold)
@@ -363,7 +353,7 @@ private fun CartErrorState(onRetry: () -> Unit) {
     ) {
         Text("Không thể tải giỏ hàng", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = PrimaryBlack)
         Spacer(Modifier.height(8.dp))
-        Text("Vui lòng thử lại sau ít phút", fontSize = 14.sp, color = TextGrey)
+        Text("Vui lòng thử lại", fontSize = 14.sp, color = TextGrey)
         Spacer(Modifier.height(18.dp))
         Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = FastDashRed, contentColor = Color.White), shape = RoundedCornerShape(16.dp)) {
             Text("Thử lại", fontWeight = FontWeight.Bold)
