@@ -45,7 +45,6 @@ import com.fastdash.app.ui.admin.AdminCustomersScreen
 import com.fastdash.app.ui.admin.AdminDashboardScreen
 import com.fastdash.app.ui.admin.AdminOrderDetailScreen
 import com.fastdash.app.ui.admin.AdminOrdersScreen
-import com.fastdash.app.ui.admin.AdminPaymentsScreen
 import com.fastdash.app.ui.admin.AdminProductScreen
 import com.fastdash.app.ui.admin.AdminRevenueScreen
 import com.fastdash.app.ui.admin.AdminSizesScreen
@@ -103,7 +102,7 @@ import java.time.format.DateTimeFormatter
 
 private enum class AppRoute {
     LOGIN, REGISTER, ADMIN_HOME, ADMIN_PRODUCT, ADMIN_ORDERS, ADMIN_CATEGORIES,
-    ADMIN_ORDER_DETAIL, ADMIN_SIZES, ADMIN_TOPPINGS, ADMIN_CUSTOMERS, ADMIN_BRANCHES, ADMIN_PAYMENTS, ADMIN_REVENUE,
+    ADMIN_ORDER_DETAIL, ADMIN_SIZES, ADMIN_TOPPINGS, ADMIN_CUSTOMERS, ADMIN_BRANCHES, ADMIN_REVENUE,
     ADMIN_PLACEHOLDER, HOME, PRODUCT_DETAIL, ORDER_HISTORY, ORDER_DETAIL,
     PROFILE, EDIT_PROFILE, CART, CHECKOUT, PICK_LOCATION, PAYMENT
 }
@@ -492,7 +491,6 @@ class MainActivity : ComponentActivity() {
                             onOpenToppings = { route = AppRoute.ADMIN_TOPPINGS },
                             onOpenCustomers = { route = AppRoute.ADMIN_CUSTOMERS },
                             onOpenBranches = { route = AppRoute.ADMIN_BRANCHES },
-                            onOpenPayments = { route = AppRoute.ADMIN_PAYMENTS },
                             onLogout = { logout() }
                         )
                         AppRoute.ADMIN_PRODUCT -> AdminProductScreen(adminProductViewModel!!, { route = AppRoute.ADMIN_HOME }, { logout() })
@@ -538,12 +536,10 @@ class MainActivity : ComponentActivity() {
                             viewModel = adminBranchViewModel!!,
                             onBack = { route = AppRoute.ADMIN_HOME }
                         )
-                        AppRoute.ADMIN_PAYMENTS -> AdminPaymentsScreen({ route = AppRoute.ADMIN_HOME }, { logout() })
                         AppRoute.ADMIN_REVENUE -> AdminRevenueScreen(
                             viewModel = adminDashboardViewModel!!,
                             onBack = { route = AppRoute.ADMIN_HOME },
-                            onOpenCompletedOrders = { openAdminOrders("COMPLETED") },
-                            onOpenPayments = { route = AppRoute.ADMIN_PAYMENTS }
+                            onOpenCompletedOrders = { openAdminOrders("COMPLETED") }
                         )
                         AppRoute.ADMIN_PLACEHOLDER -> AdminComingSoonScreen("Coming Soon", "Module is under development", { route = AppRoute.ADMIN_HOME }, { logout() })
 

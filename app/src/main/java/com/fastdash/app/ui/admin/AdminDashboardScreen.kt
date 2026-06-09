@@ -78,7 +78,6 @@ fun AdminDashboardScreen(
     onOpenToppings: () -> Unit,
     onOpenCustomers: () -> Unit,
     onOpenBranches: () -> Unit,
-    onOpenPayments: () -> Unit,
     onLogout: () -> Unit
 ) {
     LaunchedEffect(Unit) { viewModel.loadSummary() }
@@ -134,8 +133,15 @@ fun AdminDashboardScreen(
             }
 
             item {
-                SectionHeader("Quản lý danh mục")
-                ManagementShortcuts(onOpenProducts, onOpenCategories, onOpenCustomers, onOpenPayments, onOpenBranches)
+                SectionHeader("Quản lý hệ thống")
+                ManagementShortcuts(
+                    onProd = onOpenProducts,
+                    onCat = onOpenCategories,
+                    onTop = onOpenToppings,
+                    onCust = onOpenCustomers,
+                    onOrders = { onOpenOrders(null) },
+                    onBr = onOpenBranches
+                )
             }
 
             item {
@@ -198,11 +204,40 @@ private fun MainRevenueCard(revenue: Long, completedCount: Long, isLoading: Bool
 
 @Composable
 private fun ActionTile(label: String, count: Long, icon: ImageVector, color: Color, modifier: Modifier, onClick: () -> Unit) {
-    Surface(modifier = modifier.clickable { onClick() }, color = AdminSurface, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(modifier = Modifier.size(40.dp).background(color.copy(alpha = 0.12f), CircleShape), contentAlignment = Alignment.Center) { Icon(icon, null, tint = color, modifier = Modifier.size(20.dp)) }
-            Text(count.toString(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = AdminTextPrimary)
-            Text(label.uppercase(), color = AdminTextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 0.5.sp)
+    Surface(
+        modifier = modifier.clickable { onClick() },
+        color = AdminSurface,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, AdminBorder.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(color.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    count.toString(),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = AdminTextPrimary
+                )
+                Text(
+                    label.uppercase(),
+                    color = AdminTextSecondary,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 0.5.sp
+                )
+            }
         }
     }
 }
@@ -223,38 +258,112 @@ private fun StatsGrid(summary: AdminDashboardSummaryResponse?) {
 
 @Composable
 private fun StatItem(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier) {
-    Surface(modifier = modifier, color = AdminSurface, shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, AdminBorder)) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(modifier = Modifier.size(36.dp).background(color.copy(alpha = 0.08f), RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = color, modifier = Modifier.size(18.dp)) }
+    Surface(
+        modifier = modifier,
+        color = AdminSurface,
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.dp, AdminBorder.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(color.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+            }
             Column {
-                Text(value, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = AdminTextPrimary)
-                Text(label, fontSize = 11.sp, color = AdminTextSecondary, fontWeight = FontWeight.Medium)
+                Text(
+                    value,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 18.sp,
+                    color = AdminTextPrimary,
+                    lineHeight = 18.sp
+                )
+                Text(
+                    label,
+                    fontSize = 11.sp,
+                    color = AdminTextSecondary,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ManagementShortcuts(onProd: () -> Unit, onCat: () -> Unit, onCust: () -> Unit, onPay: () -> Unit, onBr: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ShortcutRow("Thực đơn món ăn", "Danh sách & giá bán", Icons.Outlined.Fastfood, AdminPrimary, onProd)
-        ShortcutRow("Danh mục & Topping", "Phân loại sản phẩm", Icons.Outlined.Category, ColorInfo, onCat)
-        ShortcutRow("Người dùng hệ thống", "Khách hàng & tài khoản", Icons.Outlined.Group, ColorSuccess, onCust)
-        ShortcutRow("Giao dịch thanh toán", "Lịch sử & doanh thu", Icons.Outlined.AccountBalanceWallet, ColorPending, onPay)
-        ShortcutRow("Chi nhánh cửa hàng", "Vị trí & nhân sự", Icons.Outlined.Storefront, ColorSecondary, onBr)
+private fun ManagementShortcuts(
+    onProd: () -> Unit,
+    onCat: () -> Unit,
+    onTop: () -> Unit,
+    onCust: () -> Unit,
+    onOrders: () -> Unit,
+    onBr: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ShortcutCard("Thực đơn", "Món & giá", Icons.Outlined.Fastfood, AdminPrimary, Modifier.weight(1f), onProd)
+            ShortcutCard("Danh mục", "Phân loại", Icons.Outlined.Category, ColorInfo, Modifier.weight(1f), onCat)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ShortcutCard("Topping", "Thêm món", Icons.Outlined.BubbleChart, ColorSecondary, Modifier.weight(1f), onTop)
+            ShortcutCard("Người dùng", "Tài khoản", Icons.Outlined.Group, ColorSuccess, Modifier.weight(1f), onCust)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ShortcutCard("Đơn hàng", "Theo dõi", Icons.Outlined.ReceiptLong, ColorPending, Modifier.weight(1f), onOrders)
+            ShortcutCard("Chi nhánh", "Vị trí", Icons.Outlined.Storefront, ColorSecondary, Modifier.weight(1f), onBr)
+        }
     }
 }
 
 @Composable
-private fun ShortcutRow(title: String, subtitle: String, icon: ImageVector, accent: Color, onClick: () -> Unit) {
-    Surface(modifier = Modifier.fillMaxWidth().clickable { onClick() }, color = AdminSurface, shape = RoundedCornerShape(18.dp), border = BorderStroke(1.dp, AdminBorder)) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(modifier = Modifier.size(44.dp).background(accent.copy(alpha = 0.1f), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = accent, modifier = Modifier.size(22.dp)) }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = AdminTextPrimary)
-                Text(subtitle, fontSize = 12.sp, color = AdminTextSecondary)
+private fun ShortcutCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    accent: Color,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier.clickable { onClick() },
+        color = AdminSurface,
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, AdminBorder.copy(alpha = 0.6f))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .background(accent.copy(alpha = 0.1f), RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = accent, modifier = Modifier.size(20.dp))
             }
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = AdminBorder, modifier = Modifier.size(16.dp))
+            Column {
+                Text(
+                    title,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 14.sp,
+                    color = AdminTextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    subtitle,
+                    fontSize = 11.sp,
+                    color = AdminTextSecondary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
@@ -274,7 +383,14 @@ private fun ProfileAvatarMenu(onLogout: () -> Unit) {
 
 @Composable
 private fun SectionHeader(text: String) {
-    Text(text = text, modifier = Modifier.padding(bottom = 4.dp), fontSize = 14.sp, fontWeight = FontWeight.Black, color = AdminTextPrimary)
+    Text(
+        text = text,
+        modifier = Modifier.padding(bottom = 4.dp),
+        fontSize = 16.sp,
+        fontWeight = FontWeight.Black,
+        color = AdminTextPrimary,
+        letterSpacing = (-0.4).sp
+    )
 }
 
 @Composable
@@ -287,8 +403,7 @@ fun SectionLabel(text: String) {
 fun AdminRevenueScreen(
     viewModel: AdminDashboardViewModel,
     onBack: () -> Unit,
-    onOpenCompletedOrders: () -> Unit,
-    onOpenPayments: () -> Unit
+    onOpenCompletedOrders: () -> Unit
 ) {
     LaunchedEffect(Unit) {
         viewModel.loadSummary()
@@ -336,8 +451,14 @@ fun AdminRevenueScreen(
             }
 
             Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onOpenCompletedOrders, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary)) { Text("Lịch sử đơn", fontWeight = FontWeight.Bold) }
-                OutlinedButton(onClick = onOpenPayments, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.5.dp, AdminPrimary)) { Text("Giao dịch", color = AdminPrimary, fontWeight = FontWeight.Bold) }
+                Button(
+                    onClick = onOpenCompletedOrders,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AdminPrimary)
+                ) {
+                    Text("Lịch sử đơn", fontWeight = FontWeight.Bold)
+                }
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -366,53 +487,114 @@ private fun RevenueHeroCard(analytics: RevenueAnalyticsUiModel, isLoading: Boole
         RevenueComparisonState.FLAT -> ColorInfo
         else -> Color.White.copy(alpha = 0.6f)
     }
-    Surface(modifier = Modifier.fillMaxWidth(), color = Color(0xFF111827), shape = RoundedCornerShape(24.dp)) {
-        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("Tổng doanh thu ${analytics.range.label.lowercase()}", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                    if (isLoading) Text("...", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
-                    else Text(formatCurrencyVnd(analytics.totalRevenue), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+    Surface(
+        modifier = Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(24.dp)),
+        color = Color(0xFF111827),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    val periodLabel = when(analytics.range) {
+                        RevenueRange.DAY -> "ngày hôm nay"
+                        RevenueRange.WEEK -> "tuần này"
+                        RevenueRange.MONTH -> "tháng này"
+                    }
+                    Text(
+                        "Tổng doanh thu $periodLabel",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    if (isLoading) {
+                        Text("...", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black)
+                    } else {
+                        Text(
+                            formatCurrencyVnd(analytics.totalRevenue),
+                            color = Color.White,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = (-0.5).sp
+                        )
+                    }
                 }
-                Surface(shape = RoundedCornerShape(12.dp), color = trendColor.copy(alpha = 0.15f)) {
-                    Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(if (analytics.trendPercent >= 0) Icons.AutoMirrored.Outlined.TrendingUp else Icons.AutoMirrored.Outlined.TrendingDown, null, tint = trendColor, modifier = Modifier.size(14.dp))
-                        Text(formatPercent(analytics.trendPercent), color = trendColor, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                if (analytics.comparisonState != RevenueComparisonState.NO_PREVIOUS) {
+                    Surface(shape = RoundedCornerShape(12.dp), color = trendColor.copy(alpha = 0.15f)) {
+                        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(
+                                if (analytics.trendPercent >= 0) Icons.AutoMirrored.Outlined.TrendingUp else Icons.AutoMirrored.Outlined.TrendingDown,
+                                null,
+                                tint = trendColor,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(formatPercent(analytics.trendPercent), color = trendColor, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        }
                     }
                 }
             }
-            Text(text = analytics.trendLabel, color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+            Text(
+                text = analytics.trendLabel,
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
 
 @Composable
 private fun RevenueChartCard(analytics: RevenueAnalyticsUiModel, selectedPoint: RevenuePoint?, isLoading: Boolean, onPointSelected: (RevenuePoint) -> Unit) {
-    Surface(modifier = Modifier.fillMaxWidth(), color = AdminSurface, shape = RoundedCornerShape(24.dp), border = BorderStroke(1.dp, AdminBorder)) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = AdminSurface,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, AdminBorder.copy(alpha = 0.5f))
+    ) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("Biểu đồ doanh thu", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
-                    Text("Chạm hoặc kéo để xem chi tiết", style = MaterialTheme.typography.bodySmall, color = AdminTextSecondary)
+                    Text("Biểu đồ doanh thu", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = AdminTextPrimary)
+                    Text(analytics.chartSubtitle, style = MaterialTheme.typography.bodySmall, color = AdminTextSecondary, fontWeight = FontWeight.Medium)
                 }
                 if (!isLoading && analytics.points.isNotEmpty()) {
-                    Surface(color = AdminBg, shape = CircleShape) {
-                        Text(if (analytics.peakRevenue > 0L) "Đỉnh: ${formatCompactMoney(analytics.peakRevenue)}" else "${analytics.totalCompletedOrders} đơn", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = AdminPrimary)
+                    Surface(color = AdminBg, shape = RoundedCornerShape(8.dp)) {
+                        Text(
+                            if (analytics.peakRevenue > 0L) "Đỉnh: ${formatCompactMoney(analytics.peakRevenue)}" else "${analytics.totalCompletedOrders} đơn",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AdminPrimary
+                        )
                     }
                 }
             }
-            if (isLoading) Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = AdminPrimary) }
-            else if (analytics.points.isEmpty()) Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { Text("Chưa có dữ liệu", color = AdminTextSecondary) }
-            else RevenueChart(points = analytics.points, color = AdminPrimary, onPointSelected = onPointSelected)
+            
+            if (isLoading) {
+                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { 
+                    CircularProgressIndicator(color = AdminPrimary, strokeWidth = 3.dp) 
+                }
+            } else if (analytics.points.isEmpty()) {
+                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) { 
+                    Text("Chưa có dữ liệu", color = AdminTextSecondary, fontWeight = FontWeight.Medium) 
+                }
+            } else {
+                RevenueChart(points = analytics.points, color = AdminPrimary, onPointSelected = onPointSelected)
+            }
             
             if (!isLoading && selectedPoint != null) {
-                Surface(modifier = Modifier.fillMaxWidth(), color = AdminBg, shape = RoundedCornerShape(12.dp)) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = AdminBg,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, AdminBorder)
+                ) {
                     Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
-                            Text(selectedPoint.detailLabel, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text("${selectedPoint.orderCount} đơn hàng", fontSize = 11.sp, color = AdminTextSecondary)
+                            Text(selectedPoint.detailLabel, fontWeight = FontWeight.Black, fontSize = 13.sp, color = AdminTextPrimary)
+                            Text("${selectedPoint.orderCount} đơn hàng thành công", fontSize = 11.sp, color = AdminTextSecondary, fontWeight = FontWeight.Medium)
                         }
-                        Text(formatCurrencyVnd(selectedPoint.revenue), fontWeight = FontWeight.Black, color = AdminPrimary, fontSize = 14.sp)
+                        Text(formatCurrencyVnd(selectedPoint.revenue), fontWeight = FontWeight.Black, color = AdminPrimary, fontSize = 15.sp)
                     }
                 }
             }
@@ -513,21 +695,43 @@ private fun RevenueChart(points: List<RevenuePoint>, color: Color, onPointSelect
 
 @Composable
 private fun PerformanceMetric(label: String, value: String, color: Color, modifier: Modifier) {
-    Surface(modifier = modifier, color = AdminSurface, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Box(modifier = Modifier.size(32.dp).background(color.copy(alpha = 0.1f), CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Analytics, null, tint = color, modifier = Modifier.size(16.dp)) }
-            Text(value, fontWeight = FontWeight.Black, fontSize = 16.sp, color = AdminTextPrimary)
-            Text(label, fontSize = 11.sp, color = AdminTextSecondary, fontWeight = FontWeight.Bold)
+    Surface(
+        modifier = modifier,
+        color = AdminSurface,
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, AdminBorder.copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(modifier = Modifier.size(36.dp).background(color.copy(alpha = 0.08f), CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.Analytics, null, tint = color, modifier = Modifier.size(18.dp))
+            }
+            Column {
+                Text(value, fontWeight = FontWeight.Black, fontSize = 17.sp, color = AdminTextPrimary)
+                Text(label, fontSize = 11.sp, color = AdminTextSecondary, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
 
 @Composable
 private fun DetailRowItem(label: String, value: String, icon: ImageVector) {
-    Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(icon, null, tint = AdminTextSecondary, modifier = Modifier.size(20.dp))
-            Text(label, color = AdminTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp, horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(AdminBg, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = AdminPrimary, modifier = Modifier.size(18.dp))
+            }
+            Text(label, color = AdminTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
         }
         Text(value, fontWeight = FontWeight.Black, color = AdminTextPrimary, fontSize = 15.sp)
     }
@@ -540,11 +744,4 @@ private fun formatCompactMoney(value: Long): String = when {
     value >= 1_000_000L -> String.format(Locale.US, "%.1fM", value / 1_000_000f)
     value >= 1_000L -> String.format(Locale.US, "%.0fK", value / 1_000f)
     else -> value.toString()
-}
-
-private fun String.toVietnamese(): String = when (this) {
-    "Theo khung gio trong ngay" -> "Theo khung giờ trong ngày"
-    "7 ngay gan nhat" -> "7 ngày gần nhất"
-    "Theo tung tuan trong thang" -> "Theo từng tuần trong tháng"
-    else -> this
 }

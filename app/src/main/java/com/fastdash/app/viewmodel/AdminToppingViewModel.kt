@@ -283,7 +283,6 @@ class AdminToppingViewModel(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(formLoading = true, formMessage = null, formError = false) }
-                val currentStatus = _uiState.value.toppings.firstOrNull { it.id == toppingId }?.status ?: 1
                 val response = repository.updateTopping(
                     id = toppingId,
                     name = name.toFormPart(),
@@ -327,12 +326,12 @@ class AdminToppingViewModel(
         }
     }
 
-    fun deleteTopping() {
-        val toppingId = _uiState.value.deletingToppingId ?: return
+    fun deleteTopping(toppingId: Long? = _uiState.value.deletingToppingId) {
+        val resolvedToppingId = toppingId ?: return
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(loading = true, message = null, isError = false) }
-                val response = repository.deleteTopping(toppingId)
+                val response = repository.deleteTopping(resolvedToppingId)
                 if (!response.isSuccessful) {
                     throw IllegalStateException(buildApiError("Xoa topping", response))
                 }

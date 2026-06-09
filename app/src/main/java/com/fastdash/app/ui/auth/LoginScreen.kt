@@ -5,44 +5,35 @@ import android.util.Patterns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
@@ -56,7 +47,14 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 
-private val PizzaHutRed = Color(0xFFC8102E)
+// Design System Colors
+private val BrandRedPrimary = Color(0xFFE31837)
+private val BrandRedDark = Color(0xFFB5122B)
+private val BrandRedDisabled = Color(0xFFF4A3B1)
+private val GrayTextPrimary = Color(0xFF1F2937)
+private val GrayTextSecondary = Color(0xFF6B7280)
+private val GrayBorder = Color(0xFFE5E7EB)
+private val BackgroundGray = Color(0xFFF9FAFB)
 
 @Composable
 fun LoginScreen(
@@ -77,6 +75,7 @@ fun LoginScreen(
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
 
     val loginResult by viewModel.loginResult.observeAsState()
     val errorMessage by viewModel.errorMessage.observeAsState()
@@ -102,14 +101,10 @@ fun LoginScreen(
         try {
             val account = task.getResult(ApiException::class.java)
             val idToken = account.idToken
-            if (idToken.isNullOrBlank()) {
-                Toast.makeText(context, "Không lấy được Google idToken", Toast.LENGTH_SHORT).show()
-            } else {
+            if (!idToken.isNullOrBlank()) {
                 viewModel.googleLogin(idToken)
             }
-        } catch (e: ApiException) {
-            Toast.makeText(context, "Google Sign-In thất bại: ${e.statusCode}", Toast.LENGTH_SHORT).show()
-        }
+        } catch (_: ApiException) {}
     }
 
     LaunchedEffect(loginResult) {
@@ -133,133 +128,285 @@ fun LoginScreen(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(BackgroundGray)
+            .imePadding()
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.logo1),
-            contentDescription = "FastDash Logo",
-            modifier = Modifier.size(150.dp),
-            contentScale = ContentScale.Fit
-        )
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = "Chào mừng bạn!",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = Color.Black
-        )
-        Text(
-            text = "Đăng nhập để đặt món nóng hổi ngay",
-            fontSize = 14.sp,
-            color = Color.Gray
+        // 1. Professional Header
+        AuthHeader(
+            logoSize = 80,
+            title = "FastDash",
+            subtitle = "Pizza nóng, giao nhanh, ưu đãi mỗi ngày",
+            modifier = Modifier.align(Alignment.TopCenter)
         )
 
-        Spacer(modifier = Modifier.height(40.dp))
-
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            isError = !emailValid,
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = PizzaHutRed,
-                focusedLabelColor = PizzaHutRed
-            )
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Mật khẩu") },
-            visualTransformation = PasswordVisualTransformation(),
-            isError = !passwordValid,
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = PizzaHutRed,
-                focusedLabelColor = PizzaHutRed
-            )
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Button(
-            onClick = { viewModel.login(email.trim(), password.trim()) },
+        // 2. Main Form Card
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
-            enabled = canSubmit,
-            colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
-            shape = RoundedCornerShape(12.dp)
+                .fillMaxHeight(0.76f)
+                .align(Alignment.BottomCenter),
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+            color = Color.White,
+            shadowElevation = 8.dp
         ) {
-            if (loading) {
-                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-            } else {
-                Text("ĐĂNG NHẬP", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-        }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Spacer(Modifier.height(32.dp))
+                
+                Text(
+                    text = "Chào mừng trở lại 👋",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GrayTextPrimary
+                )
+                Text(
+                    text = "Đăng nhập để đặt món nhanh hơn và nhận ưu đãi riêng",
+                    fontSize = 14.sp,
+                    color = GrayTextSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp, bottom = 32.dp)
+                )
 
-        Spacer(Modifier.height(20.dp))
+                // Input Fields
+                AuthTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    placeholder = "Địa chỉ Email",
+                    leadingIcon = Icons.Default.Email,
+                    isError = !emailValid,
+                    errorMessage = if (!emailValid) "Email không hợp lệ" else null
+                )
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-            Text(
-                text = "HOẶC",
-                modifier = Modifier.padding(horizontal = 12.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.Gray
-            )
-            HorizontalDivider(modifier = Modifier.weight(1f), color = Color.LightGray)
-        }
+                Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(Modifier.height(20.dp))
+                AuthTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    placeholder = "Mật khẩu",
+                    leadingIcon = Icons.Default.Lock,
+                    isPassword = true,
+                    passwordVisible = passwordVisible,
+                    onPasswordToggle = { passwordVisible = !passwordVisible },
+                    isError = !passwordValid,
+                    errorMessage = if (!passwordValid) "Mật khẩu tối thiểu 6 ký tự" else null
+                )
 
-        Button(
-            onClick = {
-                if (loading) return@Button
-                if (Constants.GOOGLE_CLIENT_ID.isBlank()) {
-                    Toast.makeText(context, "Thiếu fastdash.googleClientId", Toast.LENGTH_SHORT).show()
-                } else {
-                    googleSignInClient.signOut().addOnCompleteListener {
-                        googleLauncher.launch(googleSignInClient.signInIntent)
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                    TextButton(onClick = { /* Forgot password */ }) {
+                        Text("Quên mật khẩu?", color = BrandRedPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                 }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Surface(
-                color = Color(0xFFF1F3F4),
-                shape = RoundedCornerShape(999.dp),
-                modifier = Modifier.size(28.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Primary Action
+                Button(
+                    onClick = { viewModel.login(email.trim(), password.trim()) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    enabled = canSubmit,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BrandRedPrimary,
+                        disabledContainerColor = BrandRedDisabled
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                ) {
+                    if (loading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+                    } else {
+                        Text("ĐĂNG NHẬP", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                    }
+                }
+
+                Spacer(Modifier.height(32.dp))
+
+                // OR Divider
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth(0.9f)) {
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = GrayBorder)
+                    Text(
+                        text = "HOẶC",
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        fontSize = 12.sp,
+                        color = GrayTextSecondary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    HorizontalDivider(modifier = Modifier.weight(1f), color = GrayBorder)
+                }
+
+                Spacer(Modifier.height(24.dp))
+
+                // Google Button
+                OutlinedButton(
+                    onClick = {
+                        if (!loading) {
+                            googleSignInClient.signOut().addOnCompleteListener {
+                                googleLauncher.launch(googleSignInClient.signInIntent)
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, GrayBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GrayTextPrimary)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text("Tiếp tục với Google", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    }
+                }
+
+                Spacer(Modifier.height(32.dp))
+
+                // Bottom Navigation
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Bạn chưa có tài khoản?", color = GrayTextSecondary, fontSize = 14.sp)
+                    TextButton(onClick = onOpenRegister) {
+                        Text("Đăng ký ngay", color = BrandRedPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
                 }
             }
-            Spacer(Modifier.size(12.dp))
-            Text("Đăng nhập bằng Google", color = Color.Black, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun AuthHeader(
+    logoSize: Int,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(270.dp)
+            .background(
+                Brush.verticalGradient(listOf(BrandRedPrimary, BrandRedDark))
+            )
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                color = Color.White.copy(alpha = 0.05f),
+                radius = 120.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.1f, size.height * 0.2f)
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.08f),
+                radius = 80.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.9f, size.height * 0.7f)
+            )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .padding(bottom = 30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Surface(
+                modifier = Modifier.size(logoSize.dp),
+                shape = CircleShape,
+                color = Color.White,
+                shadowElevation = 6.dp
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.logo1),
+                    contentDescription = null,
+                    modifier = Modifier.padding(logoSize.dp / 5),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = title,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Black,
+                color = Color.White,
+                letterSpacing = 0.5.sp
+            )
+            Text(
+                text = subtitle,
+                fontSize = 13.sp,
+                color = Color.White.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
 
-        TextButton(onClick = onOpenRegister) {
-            Text("Chưa có tài khoản? Đăng ký ngay", color = PizzaHutRed, fontWeight = FontWeight.SemiBold)
+@Composable
+private fun AuthTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    isPassword: Boolean = false,
+    passwordVisible: Boolean = false,
+    onPasswordToggle: () -> Unit = {},
+    isError: Boolean = false,
+    errorMessage: String? = null
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text(placeholder, color = GrayTextSecondary, fontSize = 15.sp) },
+            leadingIcon = { Icon(leadingIcon, null, tint = BrandRedPrimary.copy(alpha = 0.7f), modifier = Modifier.size(20.dp)) },
+            trailingIcon = if (isPassword) {
+                {
+                    IconButton(onClick = onPasswordToggle) {
+                        Icon(
+                            if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            null,
+                            tint = GrayTextSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            } else null,
+            visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            shape = RoundedCornerShape(16.dp),
+            singleLine = true,
+            isError = isError,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = BrandRedPrimary,
+                unfocusedBorderColor = GrayBorder,
+                errorBorderColor = BrandRedPrimary,
+                cursorColor = BrandRedPrimary
+            )
+        )
+        if (isError && errorMessage != null) {
+            Text(
+                text = errorMessage,
+                color = BrandRedPrimary,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 12.dp, top = 4.dp),
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

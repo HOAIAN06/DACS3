@@ -35,9 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.fastdash.app.data.model.response.BranchResponse
-import com.fastdash.app.data.remote.api.AdminPaymentResponse
 import com.fastdash.app.data.remote.api.UserResponse
-import com.fastdash.app.data.repository.AdminPaymentRepository
 import com.fastdash.app.data.repository.AdminUserRepository
 import com.fastdash.app.utils.CurrencyUtils
 import com.fastdash.app.viewmodel.AdminBranchUiState
@@ -800,75 +798,6 @@ private fun Address.toBranchReadableAddress(): String {
     return if (parts.isNotEmpty()) parts.joinToString(", ") else getAddressLine(0).orEmpty()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AdminPaymentsScreen(onBack: () -> Unit, onLogout: () -> Unit) {
-    val context = LocalContext.current
-    val repository = remember { AdminPaymentRepository(context.applicationContext) }
-    val scope = rememberCoroutineScope()
-    var loading by remember { mutableStateOf(true) }
-    var payments by remember { mutableStateOf<List<AdminPaymentResponse>>(emptyList()) }
-
-    fun load() {
-        loading = true
-        scope.launch {
-            try {
-                val resp = repository.getPayments()
-                if (resp.isSuccessful) payments = resp.body().orEmpty()
-            } catch (_: Exception) {} finally { loading = false }
-        }
-    }
-
-    LaunchedEffect(Unit) { load() }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Quáº£n lÃ½ thanh toÃ¡n", fontWeight = FontWeight.ExtraBold) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, null) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = AdminBg)
-            )
-        },
-        containerColor = AdminBg
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (loading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = AdminRed)
-            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                items(payments) { payment ->
-                    PaymentManagementItem(payment)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PaymentManagementItem(payment: AdminPaymentResponse) {
-    Surface(modifier = Modifier.fillMaxWidth(), color = AdminSurface, shape = RoundedCornerShape(20.dp), border = BorderStroke(1.dp, AdminBorder)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("ÄÆ¡n hÃ ng #${payment.orderId}", fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, color = AdminTextMain)
-                    Text(payment.createdAt ?: "--", fontSize = 11.sp, color = AdminTextMuted)
-                }
-                StatusBadge(payment.status)
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(modifier = Modifier.size(32.dp).background(Color(0xFFF3F4F6), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Payments, null, tint = AdminTextMain, modifier = Modifier.size(16.dp))
-                    }
-                    Text(payment.method ?: "COD", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                }
-                Text(CurrencyUtils.formatVnd(payment.amount), color = AdminRed, fontWeight = FontWeight.Black, fontSize = 16.sp)
-            }
-            if (!payment.transactionCode.isNullOrBlank()) {
-                Text("MÃ£ giao dá»‹ch: ${payment.transactionCode}", fontSize = 11.sp, color = AdminTextMuted, modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(AdminBg).padding(4.dp))
-            }
-        }
-    }
-}
-
 @Composable
 private fun StatusBadge(status: String?) {
     val normalized = status?.trim()?.uppercase() ?: "UNKNOWN"
@@ -889,5 +818,4 @@ private fun StatusBadge(status: String?) {
         )
     }
 }
-
 

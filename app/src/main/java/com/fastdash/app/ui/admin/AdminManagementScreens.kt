@@ -506,6 +506,6 @@ private fun Context.resolveFileName(uri: Uri): String {
         "image/jpeg", "image/jpg" -> "jpg"
         else -> "jpg"
     }
-    return "image."
+    return "image.$extension"
 }
 
