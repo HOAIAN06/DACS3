@@ -3,6 +3,7 @@ package com.fastdash.app.data.remote.retrofit
 import android.content.Context
 import android.util.Log
 import com.fastdash.app.data.remote.api.AuthApi
+import com.fastdash.app.data.remote.api.AiApi
 import com.fastdash.app.data.remote.api.BranchApi
 import com.fastdash.app.data.remote.api.CartApi
 import com.fastdash.app.data.remote.api.CategoryApi
@@ -29,6 +30,7 @@ import retrofit2.Retrofit
 import com.google.gson.FieldNamingPolicy
 import com.google.gson.GsonBuilder
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
     private const val TAG = "RetrofitClient"
@@ -45,6 +47,10 @@ object RetrofitClient {
 		val okHttpClient = OkHttpClient.Builder()
 			.addInterceptor(AuthInterceptor(context))
 			.addInterceptor(logging)
+			.connectTimeout(20, TimeUnit.SECONDS)
+			.readTimeout(45, TimeUnit.SECONDS)
+			.writeTimeout(45, TimeUnit.SECONDS)
+			.callTimeout(60, TimeUnit.SECONDS)
 			.build()
 
 		val gson = GsonBuilder()
@@ -68,6 +74,10 @@ object RetrofitClient {
 
 	fun authApi(context: Context): AuthApi {
 		return getRetrofit(context).create(AuthApi::class.java)
+	}
+
+	fun aiApi(context: Context): AiApi {
+		return getRetrofit(context).create(AiApi::class.java)
 	}
 
 	fun userApi(context: Context): UserApi {

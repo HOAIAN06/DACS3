@@ -4,26 +4,23 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.StickyNote2
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Tag
-import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,7 +49,6 @@ private val SurfaceWhite = Color.White
 private val TextPrimary = Color(0xFF1F2937)
 private val TextSecondary = Color(0xFF6B7280)
 private val DividerColor = Color(0xFFE5E7EB)
-private val SuccessGreen = Color(0xFF16A34A)
 
 data class OrderItemUiModel(
     val id: Long,
@@ -81,6 +77,7 @@ data class OrderDetailUiModel(
     val shippingFee: Double,
     val discountAmount: Double,
     val totalAmount: Double,
+    val paymentUrl: String,
     val note: String,
     val items: List<OrderItemUiModel>
 )
@@ -91,15 +88,18 @@ fun OrderDetailScreen(
     order: OrderDetailUiModel,
     onBack: () -> Unit,
     onReorder: (OrderDetailUiModel) -> Unit,
-    onCancelOrder: (OrderDetailUiModel) -> Unit
+    onCancelOrder: (OrderDetailUiModel) -> Unit,
+    onRetryPayment: (OrderDetailUiModel) -> Unit
 ) {
+    val showRetryPayment = shouldShowRetryPayment(order)
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chi tiết đơn hàng".normalizeVietnameseText(), fontWeight = FontWeight.Bold) },
+                title = { Text("Chi ti?t don h�ng", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại".normalizeVietnameseText())
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay l?i")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceWhite)
@@ -107,17 +107,24 @@ fun OrderDetailScreen(
         },
         containerColor = BackgroundGrey,
         bottomBar = {
-            Surface(
-                color = SurfaceWhite,
-                shadowElevation = 10.dp
-            ) {
+            Surface(color = SurfaceWhite, shadowElevation = 10.dp) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (order.status.trim().uppercase() == "PENDING") {
+                    if (showRetryPayment) {
+                        Button(
+                            onClick = { onRetryPayment(order) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed)
+                        ) {
+                            Text(retryPaymentLabel(order), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (order.status.trim().uppercase() == "PENDING" || order.status.trim().uppercase() == "PENDING_PAYMENT") {
                         OutlinedButton(
                             onClick = { onCancelOrder(order) },
                             modifier = Modifier.fillMaxWidth(),
@@ -125,16 +132,16 @@ fun OrderDetailScreen(
                             border = BorderStroke(1.dp, PizzaHutRed),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = PizzaHutRed)
                         ) {
-                            Text("Hủy đơn hàng".normalizeVietnameseText(), fontWeight = FontWeight.Bold)
+                            Text("H?y don h�ng", fontWeight = FontWeight.Bold)
                         }
                     }
                     Button(
                         onClick = { onReorder(order) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed)
+                        colors = ButtonDefaults.buttonColors(containerColor = if (showRetryPayment) TextPrimary else PizzaHutRed)
                     ) {
-                        Text("Đặt lại đơn này".normalizeVietnameseText(), fontWeight = FontWeight.Bold)
+                        Text("�?t l?i don n�y", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -147,27 +154,25 @@ fun OrderDetailScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item { HeaderCard(order) }
             item {
-                HeaderCard(order)
-            }
-            item {
-                DetailSection("Thông tin giao hàng".normalizeVietnameseText()) {
-                    DetailLine(Icons.Outlined.Person, "Người nhận".normalizeVietnameseText(), order.receiverName.ifBlank { "Chưa có thông tin".normalizeVietnameseText() })
-                    DetailLine(Icons.Outlined.Phone, "Số điện thoại".normalizeVietnameseText(), order.receiverPhone.ifBlank { "Chưa có thông tin".normalizeVietnameseText() })
-                    DetailLine(Icons.Outlined.LocationOn, "Địa chỉ giao hàng".normalizeVietnameseText(), order.deliveryAddress.ifBlank { "Chưa có địa chỉ giao hàng".normalizeVietnameseText() })
-                    DetailLine(Icons.Outlined.Storefront, "Cửa hàng phục vụ".normalizeVietnameseText(), order.branchName.ifBlank { "Chưa có thông tin".normalizeVietnameseText() })
+                DetailSection("Th�ng tin giao h�ng") {
+                    DetailLine(Icons.Outlined.Person, "Ngu?i nh?n", order.receiverName.ifBlank { "Chua c� th�ng tin" })
+                    DetailLine(Icons.Outlined.Phone, "S? di?n tho?i", order.receiverPhone.ifBlank { "Chua c� th�ng tin" })
+                    DetailLine(Icons.Outlined.LocationOn, "�?a ch? giao h�ng", order.deliveryAddress.ifBlank { "Chua c� d?a ch? giao h�ng" })
+                    DetailLine(Icons.Outlined.Storefront, "C?a h�ng ph?c v?", order.branchName.ifBlank { "Chua c� th�ng tin" })
                     if (order.branchAddress.isNotBlank()) {
-                        DetailLine(Icons.Outlined.Storefront, "Địa chỉ cửa hàng".normalizeVietnameseText(), order.branchAddress)
+                        DetailLine(Icons.Outlined.Storefront, "�?a ch? c?a h�ng", order.branchAddress)
                     }
                     order.distanceKm?.let {
-                        DetailLine(Icons.Outlined.Tag, "Khoảng cách".normalizeVietnameseText(), String.format("%.2f km", it))
+                        DetailLine(Icons.Outlined.Tag, "Kho?ng c�ch", String.format("%.2f km", it))
                     }
                 }
             }
             item {
-                DetailSection("Danh sách món".normalizeVietnameseText()) {
+                DetailSection("Danh s�ch m�n") {
                     if (order.items.isEmpty()) {
-                        Text("Đơn giao hàng".normalizeVietnameseText(), color = TextSecondary, fontSize = 14.sp)
+                        Text("�on giao h�ng", color = TextSecondary, fontSize = 14.sp)
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             order.items.forEachIndexed { index, item ->
@@ -181,28 +186,24 @@ fun OrderDetailScreen(
                 }
             }
             item {
-                DetailSection("Thanh toán".normalizeVietnameseText()) {
-                    DetailTextRow("Phương thức thanh toán".normalizeVietnameseText(), mapPaymentMethod(order.paymentMethod))
-                    DetailTextRow("Trạng thái thanh toán".normalizeVietnameseText(), mapPaymentStatus(order.paymentStatus))
+                DetailSection("Thanh to�n") {
+                    DetailTextRow("Phuong th?c thanh to�n", mapPaymentMethod(order.paymentMethod))
+                    DetailTextRow("Tr?ng th�i thanh to�n", mapPaymentStatus(order.paymentStatus))
                 }
             }
             item {
-                DetailSection("Chi tiết thanh toán".normalizeVietnameseText()) {
-                    DetailPriceRow("Tạm tính".normalizeVietnameseText(), order.subtotal)
-                    DetailPriceRow("Phí giao hàng".normalizeVietnameseText(), order.shippingFee)
-                    DetailPriceRow("Giảm giá".normalizeVietnameseText(), order.discountAmount)
+                DetailSection("Chi ti?t thanh to�n") {
+                    DetailPriceRow("T?m t�nh", order.subtotal)
+                    DetailPriceRow("Ph� giao h�ng", order.shippingFee)
+                    DetailPriceRow("Gi?m gi�", order.discountAmount)
                     HorizontalDivider(color = DividerColor, modifier = Modifier.padding(vertical = 4.dp))
-                    DetailPriceRow("Tổng cộng".normalizeVietnameseText(), order.totalAmount, highlight = true)
+                    DetailPriceRow("T?ng c?ng", order.totalAmount, highlight = true)
                 }
             }
             if (order.note.isNotBlank()) {
                 item {
-                    DetailSection("Ghi chú".normalizeVietnameseText()) {
-                        Text(
-                            order.note,
-                            color = TextPrimary,
-                            fontSize = 14.sp
-                        )
+                    DetailSection("Ghi ch�") {
+                        Text(order.note, color = TextPrimary, fontSize = 14.sp)
                     }
                 }
             }
@@ -210,12 +211,28 @@ fun OrderDetailScreen(
     }
 }
 
+private fun shouldShowRetryPayment(order: OrderDetailUiModel): Boolean {
+    val paymentMethod = order.paymentMethod.trim().uppercase()
+    val paymentStatus = order.paymentStatus.trim().uppercase()
+    val orderStatus = order.status.trim().uppercase()
+    if (paymentMethod != "VNPAY") return false
+    return paymentStatus in setOf("PENDING", "UNPAID", "FAILED") ||
+        orderStatus in setOf("PENDING_PAYMENT", "PAYMENT_FAILED")
+}
+
+private fun retryPaymentLabel(order: OrderDetailUiModel): String {
+    val paymentStatus = order.paymentStatus.trim().uppercase()
+    val orderStatus = order.status.trim().uppercase()
+    return if (paymentStatus == "FAILED" || orderStatus == "PAYMENT_FAILED") {
+        "Thanh to�n l?i"
+    } else {
+        "Ti?p t?c thanh to�n"
+    }
+}
+
 @Composable
 private fun HeaderCard(order: OrderDetailUiModel) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = SurfaceWhite
-    ) {
+    Surface(shape = RoundedCornerShape(18.dp), color = SurfaceWhite) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -226,7 +243,7 @@ private fun HeaderCard(order: OrderDetailUiModel) {
                 verticalAlignment = Alignment.Top
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(order.orderCode.ifBlank { "Không có mã đơn".normalizeVietnameseText() }, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
+                    Text(order.orderCode.ifBlank { "Kh�ng c� m� don" }, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, color = TextPrimary)
                     Text(formatOrderDate(order.createdAt), color = TextSecondary, fontSize = 13.sp)
                 }
                 Surface(
@@ -243,9 +260,9 @@ private fun HeaderCard(order: OrderDetailUiModel) {
                 }
             }
 
-            DetailTextRow("Mã đơn".normalizeVietnameseText(), order.orderCode.ifBlank { "Không có mã đơn".normalizeVietnameseText() })
-            DetailTextRow("Trạng thái".normalizeVietnameseText(), mapOrderStatus(order.status))
-            DetailTextRow("Ngày đặt".normalizeVietnameseText(), formatOrderDate(order.createdAt))
+            DetailTextRow("M� don", order.orderCode.ifBlank { "Kh�ng c� m� don" })
+            DetailTextRow("Tr?ng th�i", mapOrderStatus(order.status))
+            DetailTextRow("Ng�y d?t", formatOrderDate(order.createdAt))
         }
     }
 }
@@ -255,10 +272,7 @@ private fun DetailSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = SurfaceWhite
-    ) {
+    Surface(shape = RoundedCornerShape(18.dp), color = SurfaceWhite) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -285,7 +299,7 @@ private fun DetailLine(icon: ImageVector, label: String, value: String) {
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(label, color = TextSecondary, fontSize = 12.sp)
-            Text(value.normalizeVietnameseText(), color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(value, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -298,12 +312,7 @@ private fun DetailTextRow(label: String, value: String) {
         verticalAlignment = Alignment.Top
     ) {
         Text(label, color = TextSecondary, fontSize = 14.sp)
-        Text(
-            value.normalizeVietnameseText(),
-            color = TextPrimary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Text(value, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -332,19 +341,15 @@ private fun OrderItemRow(item: OrderItemUiModel) {
             verticalAlignment = Alignment.Top
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(item.name.normalizeVietnameseText().ifBlank { "Món đã đặt".normalizeVietnameseText() }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
+                Text(item.name.ifBlank { "M�n d� d?t" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextPrimary)
                 if (item.sizeName.isNotBlank()) {
-                    Text("Size: ${item.sizeName}".normalizeVietnameseText(), color = TextSecondary, fontSize = 13.sp)
+                    Text("Size: ${item.sizeName}", color = TextSecondary, fontSize = 13.sp)
                 }
                 if (item.toppings.isNotEmpty()) {
-                    Text(
-                        "Topping: ${item.toppings.joinToString(", ")}".normalizeVietnameseText(),
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    )
+                    Text("Topping: ${item.toppings.joinToString(", ")}", color = TextSecondary, fontSize = 13.sp)
                 }
-                Text("Số lượng: ${item.quantity}".normalizeVietnameseText(), color = TextSecondary, fontSize = 13.sp)
-                Text("Đơn giá: ${CurrencyUtils.formatVnd(item.unitPrice)}".normalizeVietnameseText(), color = TextSecondary, fontSize = 13.sp)
+                Text("S? lu?ng: ${item.quantity}", color = TextSecondary, fontSize = 13.sp)
+                Text("�on gi�: ${CurrencyUtils.formatVnd(item.unitPrice)}", color = TextSecondary, fontSize = 13.sp)
             }
             Text(
                 CurrencyUtils.formatVnd(item.unitPrice * item.quantity),
@@ -356,7 +361,7 @@ private fun OrderItemRow(item: OrderItemUiModel) {
         if (item.note.isNotBlank()) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Outlined.StickyNote2, contentDescription = null, tint = TextSecondary)
-                Text(item.note.normalizeVietnameseText(), color = TextSecondary, fontSize = 12.sp)
+                Text(item.note, color = TextSecondary, fontSize = 12.sp)
             }
         }
     }

@@ -11,17 +11,21 @@ class AuthInterceptor(context: Context) : Interceptor {
     private val authPathsWithoutBearer = setOf(
         "/api/v1/auth/login",
         "/api/v1/auth/register",
-        "/api/v1/auth/google"
+        "/api/v1/auth/google",
+        "/api/v1/auth/forgot-password",
+        "/api/v1/auth/verify-reset-code",
+        "/api/v1/auth/reset-password"
     )
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val token = tokenManager.getToken()
         val request = chain.request()
         val encodedPath = request.url.encodedPath
+        val hasAuthorizationHeader = !request.header("Authorization").isNullOrBlank()
 
         val requestBuilder = request.newBuilder()
 
-        if (!token.isNullOrEmpty() && encodedPath !in authPathsWithoutBearer) {
+        if (!hasAuthorizationHeader && !token.isNullOrEmpty() && encodedPath !in authPathsWithoutBearer) {
             requestBuilder.addHeader("Authorization", "Bearer $token")
         }
 

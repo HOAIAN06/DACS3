@@ -24,8 +24,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fastdash.app.data.model.request.CreateOrderRequest
 import com.fastdash.app.data.model.request.OrderItemRequest
+import com.fastdash.app.data.model.response.CartItemResponse
 import com.fastdash.app.data.model.response.OrderResponse
 import com.fastdash.app.data.model.response.ProductResponse
+import com.fastdash.app.data.repository.AiRepository
 import com.fastdash.app.data.repository.AdminBranchRepository
 import com.fastdash.app.data.repository.AdminCategoryRepository
 import com.fastdash.app.data.repository.AdminCustomerRepository
@@ -49,8 +51,12 @@ import com.fastdash.app.ui.admin.AdminProductScreen
 import com.fastdash.app.ui.admin.AdminRevenueScreen
 import com.fastdash.app.ui.admin.AdminSizesScreen
 import com.fastdash.app.ui.admin.AdminToppingsScreen
+import com.fastdash.app.ui.ai.AiAssistantScreen
+import com.fastdash.app.ui.auth.ForgotPasswordEmailScreen
 import com.fastdash.app.ui.auth.LoginScreen
+import com.fastdash.app.ui.auth.ResetPasswordScreen
 import com.fastdash.app.ui.auth.RegisterScreen
+import com.fastdash.app.ui.auth.VerifyOtpScreen
 import com.fastdash.app.ui.cart.CartScreen
 import com.fastdash.app.ui.checkout.CheckoutScreen
 import com.fastdash.app.ui.checkout.DeliveryLocation
@@ -73,6 +79,7 @@ import com.fastdash.app.ui.theme.FastDash_androidTheme
 import com.fastdash.app.utils.PendingPaymentStore
 import com.fastdash.app.utils.SavedLocationStore
 import com.fastdash.app.utils.TokenManager
+import com.fastdash.app.viewmodel.AiAssistantViewModel
 import com.fastdash.app.viewmodel.AdminBranchViewModel
 import com.fastdash.app.viewmodel.AdminBranchViewModelFactory
 import com.fastdash.app.viewmodel.AdminCategoryViewModel
@@ -97,15 +104,36 @@ import com.fastdash.app.viewmodel.OrderViewModel
 import com.fastdash.app.viewmodel.ProductDetailViewModel
 import com.fastdash.app.viewmodel.ProfileViewModel
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 private enum class AppRoute {
     LOGIN, REGISTER, ADMIN_HOME, ADMIN_PRODUCT, ADMIN_ORDERS, ADMIN_CATEGORIES,
     ADMIN_ORDER_DETAIL, ADMIN_SIZES, ADMIN_TOPPINGS, ADMIN_CUSTOMERS, ADMIN_BRANCHES, ADMIN_REVENUE,
-    ADMIN_PLACEHOLDER, HOME, PRODUCT_DETAIL, ORDER_HISTORY, ORDER_DETAIL,
-    PROFILE, EDIT_PROFILE, CART, CHECKOUT, PICK_LOCATION, PAYMENT
+    ADMIN_PLACEHOLDER, FORGOT_PASSWORD, VERIFY_RESET_OTP, RESET_PASSWORD, HOME, PRODUCT_DETAIL, ORDER_HISTORY, ORDER_DETAIL,
+    PROFILE, EDIT_PROFILE, CART, CHECKOUT, PICK_LOCATION, PAYMENT, AI_ASSISTANT
 }
+
+private data class CartItemEditState(
+    val itemId: Long,
+    val productId: Long,
+    val quantity: Int,
+    val productSizeId: Long?,
+    val toppingIds: List<Long>,
+    val toppingNames: List<String>,
+    val note: String?
+)
+
+private data class ReorderCheckoutDraft(
+    val items: List<OrderItemRequest>,
+    val subtotal: Double,
+    val receiverName: String,
+    val receiverPhone: String,
+    val deliveryAddress: String,
+    val note: String,
+    val pickedLocation: PickedLocation?
+)
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -123,6 +151,7 @@ class MainActivity : ComponentActivity() {
                 val productRepository = remember { ProductRepository(applicationContext) }
                 val orderRepository = remember { OrderRepository(applicationContext) }
                 val userRepository = remember { UserRepository(applicationContext) }
+                val aiRepository = remember { AiRepository(applicationContext) }
                 val adminProductRepository = remember { AdminProductRepository(applicationContext) }
                 val adminBranchRepository = remember { AdminBranchRepository(applicationContext) }
                 val adminCategoryRepository = remember { AdminCategoryRepository(applicationContext) }
@@ -136,21 +165,28 @@ class MainActivity : ComponentActivity() {
                 val orderViewModel: OrderViewModel = viewModel(factory = AppViewModelFactory { OrderViewModel(orderRepository) })
                 val productDetailViewModel: ProductDetailViewModel = viewModel(factory = AppViewModelFactory { ProductDetailViewModel(productRepository) })
                 val profileViewModel: ProfileViewModel = viewModel(factory = AppViewModelFactory { ProfileViewModel(userRepository) })
+                val aiAssistantViewModel: AiAssistantViewModel = viewModel(factory = AppViewModelFactory { AiAssistantViewModel(aiRepository) })
 
                 val scope = rememberCoroutineScope()
                 var isLoggedIn by remember { mutableStateOf(!tokenManager.getToken().isNullOrEmpty()) }
                 var selectedProduct by remember { mutableStateOf<ProductResponse?>(null) }
+                var editingCartItem by remember { mutableStateOf<CartItemEditState?>(null) }
+                var productDetailFromAi by remember { mutableStateOf(false) }
                 var selectedOrderId by remember { mutableStateOf<Long?>(null) }
                 var adminSelectedOrderId by remember { mutableStateOf<Long?>(null) }
                 var adminOrdersInitialStatus by remember { mutableStateOf<String?>(null) }
                 var directCheckoutItem by remember { mutableStateOf<OrderItemRequest?>(null) }
                 var directCheckoutTotal by remember { mutableStateOf(0.0) }
+                var reorderCheckoutDraft by remember { mutableStateOf<ReorderCheckoutDraft?>(null) }
                 var checkoutPickedLocation by remember { mutableStateOf<PickedLocation?>(null) }
                 var checkoutCurrentLocation by remember { mutableStateOf<PickedLocation?>(null) }
                 var checkoutDraftName by remember { mutableStateOf("") }
                 var checkoutDraftPhone by remember { mutableStateOf("") }
                 var checkoutDraftAddressDetail by remember { mutableStateOf("") }
                 var checkoutDraftNote by remember { mutableStateOf("") }
+                var forgotPasswordEmail by remember { mutableStateOf("") }
+                var forgotPasswordCode by remember { mutableStateOf("") }
+                var forgotPasswordResendAvailableAt by remember { mutableStateOf(0L) }
                 var savedDeliveryLocations by remember { mutableStateOf(savedLocationStore.getLocations()) }
                 var lastCreatedOrderId by remember { mutableStateOf<Long?>(null) }
                 var lastCreatedOrderCreatedAt by remember { mutableStateOf<String?>(null) }
@@ -185,11 +221,15 @@ class MainActivity : ComponentActivity() {
                 val orderListState by orderViewModel.orders.collectAsState()
                 val orderMessage by orderViewModel.message.collectAsState()
                 val selectedOrderState by orderViewModel.selectedOrder.collectAsState()
+                val aiMessages by aiAssistantViewModel.messages.collectAsState()
+                val aiInputText by aiAssistantViewModel.inputText.collectAsState()
+                val aiLoading by aiAssistantViewModel.isLoading.collectAsState()
+                val aiErrorMessage by aiAssistantViewModel.errorMessage.collectAsState()
 
                 fun currentRole(): String = tokenManager.getRole().orEmpty().trim().uppercase()
                 fun isAdmin(): Boolean = currentRole() == "ADMIN"
                 fun rootRoute(): AppRoute = if (isAdmin()) AppRoute.ADMIN_HOME else AppRoute.HOME
-                fun safeOrderCode(raw: String?): String = raw.normalizeVietnameseText().takeIf { it.isNotBlank() } ?: "Khong co ma don"
+                fun safeOrderCode(raw: String?): String = raw.normalizeVietnameseText().takeIf { it.isNotBlank() } ?: "Không có mã đơn"
                 fun safeOrderCreatedAt(raw: String?): String = formatOrderDate(raw)
                 fun safeOrderStatus(raw: String?): String = raw?.takeIf { it.isNotBlank() } ?: "PENDING"
                 fun calculateOrderTotal(order: OrderResponse): Double {
@@ -200,12 +240,101 @@ class MainActivity : ComponentActivity() {
                 fun clearCheckoutDrafts() {
                     directCheckoutItem = null
                     directCheckoutTotal = 0.0
+                    reorderCheckoutDraft = null
                     checkoutPickedLocation = null
                     checkoutCurrentLocation = null
                     checkoutDraftName = ""
                     checkoutDraftPhone = ""
                     checkoutDraftAddressDetail = ""
                     checkoutDraftNote = ""
+                }
+
+                fun openCartItemEditor(item: CartItemResponse) {
+                    val productId = item.productId ?: return
+                    editingCartItem = CartItemEditState(
+                        itemId = item.id,
+                        productId = productId,
+                        quantity = item.quantity,
+                        productSizeId = item.productSizeId,
+                        toppingIds = item.toppings.map { it.id },
+                        toppingNames = item.toppings.mapNotNull { it.name?.takeIf { name -> name.isNotBlank() } },
+                        note = item.note?.takeIf { note -> note.isNotBlank() }
+                    )
+                    productDetailFromAi = false
+                    clearCheckoutDrafts()
+                    selectedProduct = ProductResponse(
+                        id = productId,
+                        name = item.resolvedProductName,
+                        description = null,
+                        basePrice = item.unitPrice,
+                        imageUrl = item.productImageUrl,
+                        isCustomizable = 1,
+                        categoryId = 0L,
+                        categoryName = ""
+                    )
+                    productDetailViewModel.loadDetails(productId)
+                }
+
+                fun checkoutBackRoute(): AppRoute = when {
+                    reorderCheckoutDraft != null -> AppRoute.ORDER_DETAIL
+                    directCheckoutItem != null -> AppRoute.PRODUCT_DETAIL
+                    else -> AppRoute.CART
+                }
+
+                suspend fun buildReorderCheckoutDraft(order: OrderResponse): ReorderCheckoutDraft {
+                    val products = productRepository.getProducts().body().orEmpty()
+                    val resolvedItems = order.items.orEmpty().map { orderItem ->
+                        val product = products.firstOrNull {
+                            it.name.trim().equals(orderItem.productName.trim(), ignoreCase = true)
+                        } ?: error("Khong tim thay san pham ${orderItem.productName}")
+
+                        val sizeId = orderItem.sizeName?.takeIf { it.isNotBlank() }?.let { sizeName ->
+                            val sizes = productRepository.getProductSizes(product.id).body().orEmpty()
+                            sizes.firstOrNull {
+                                it.sizeName.orEmpty().trim().equals(sizeName.trim(), ignoreCase = true)
+                            }?.id ?: error("Khong tim thay size $sizeName cho ${orderItem.productName}")
+                        }
+
+                        val toppingIds = if (orderItem.toppings.isEmpty()) {
+                            emptyList()
+                        } else {
+                            val toppings = productRepository.getProductToppings(product.id).body().orEmpty()
+                            orderItem.toppings.map { toppingName ->
+                                toppings.firstOrNull {
+                                    it.name.orEmpty().trim().equals(toppingName.trim(), ignoreCase = true)
+                                }?.id ?: error("Khong tim thay topping $toppingName cho ${orderItem.productName}")
+                            }
+                        }
+
+                        OrderItemRequest(
+                            productId = product.id,
+                            productSizeId = sizeId,
+                            quantity = orderItem.quantity,
+                            note = orderItem.note,
+                            toppingIds = toppingIds
+                        )
+                    }
+
+                    val pickedLocation = if (order.deliveryLatitude != null && order.deliveryLongitude != null) {
+                        PickedLocation(
+                            latitude = order.deliveryLatitude,
+                            longitude = order.deliveryLongitude,
+                            address = order.deliveryAddress.orEmpty(),
+                            detailAddress = ""
+                        )
+                    } else {
+                        null
+                    }
+
+                    return ReorderCheckoutDraft(
+                        items = resolvedItems,
+                        subtotal = order.subtotal.takeIf { it > 0.0 } ?: order.items.orEmpty().sumOf { it.totalPrice },
+                        receiverName = order.receiverName.orEmpty(),
+                        receiverPhone = order.receiverPhone.orEmpty(),
+                        deliveryAddress = order.deliveryAddress.orEmpty(),
+                        note = order.note.orEmpty(),
+                        pickedLocation = pickedLocation
+                    )
                 }
 
                 fun cacheOrderMetadata(
@@ -249,7 +378,7 @@ class MainActivity : ComponentActivity() {
                     try {
                         val order = orderViewModel.fetchOrderDetail(orderId)
                         if (order == null) {
-                            paymentStatusMessage = "Khong the kiem tra trang thai thanh toan."
+                            paymentStatusMessage = "Không thể kiểm tra trạng thái thanh toán."
                             if (paymentScreenState == PaymentScreenState.CHECKING) {
                                 paymentScreenState = PaymentScreenState.PENDING
                             }
@@ -258,7 +387,7 @@ class MainActivity : ComponentActivity() {
 
                         cacheOrderMetadata(
                             order = order,
-                            createdAtFallback = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                            createdAtFallback = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US).format(Calendar.getInstance().time),
                             branchNameFallback = lastCreatedBranchName,
                             branchAddressFallback = lastCreatedBranchAddress,
                             noteFallback = lastCreatedOrderNote
@@ -274,7 +403,7 @@ class MainActivity : ComponentActivity() {
                         when {
                             normalizedPaymentStatus == "PAID" && normalizedOrderStatus == "PENDING_CONFIRMATION" -> {
                                 paymentScreenState = PaymentScreenState.PAID
-                                paymentStatusMessage = "Don hang dang cho cua hang xac nhan."
+                                paymentStatusMessage = "Đơn hàng đang chờ cửa hàng xác nhận."
                                 paymentReturnArmed = false
                                 paymentShouldCheckOnEnter = false
                                 clearPersistedPendingPayment()
@@ -282,18 +411,18 @@ class MainActivity : ComponentActivity() {
                             }
                             normalizedPaymentStatus == "FAILED" || normalizedOrderStatus == "PAYMENT_FAILED" -> {
                                 paymentScreenState = PaymentScreenState.FAILED
-                                paymentStatusMessage = "Ban co the thu thanh toan lai cho don hang nay."
+                                paymentStatusMessage = "Bạn có thể thử thanh toán lại cho đơn hàng này."
                                 paymentReturnArmed = false
                                 paymentShouldCheckOnEnter = false
                                 clearPersistedPendingPayment()
                             }
                             normalizedPaymentStatus == "PENDING" && normalizedOrderStatus == "PENDING_PAYMENT" -> {
                                 paymentScreenState = PaymentScreenState.PENDING
-                                paymentStatusMessage = "Don hang van dang cho thanh toan."
+                                paymentStatusMessage = "Đơn hàng vẫn đang chờ thanh toán."
                             }
                             else -> {
                                 paymentScreenState = PaymentScreenState.PENDING
-                                paymentStatusMessage = "Trang thai thanh toan chua hoan tat. Vui long kiem tra lai."
+                                paymentStatusMessage = "Trạng thái thanh toán chưa hoàn tất. Vui lòng kiểm tra lại."
                             }
                         }
                     } finally {
@@ -318,17 +447,17 @@ class MainActivity : ComponentActivity() {
 
                         if (targetUrl.isNullOrBlank()) {
                             paymentScreenState = PaymentScreenState.PENDING
-                            paymentStatusMessage = "Khong lay duoc link thanh toan VNPAY. Ban co the thu lai sau."
+                            paymentStatusMessage = "Không lấy được liên kết thanh toán VNPAY. Bạn có thể thử lại sau."
                             return
                         }
 
                         if (openPaymentInBrowser(targetUrl)) {
                             paymentReturnArmed = true
                             paymentScreenState = PaymentScreenState.CHECKING
-                            paymentStatusMessage = "Thanh toan xong, vui long quay lai ung dung FastDash de tiep tuc."
+                            paymentStatusMessage = "Thanh toán xong, vui lòng quay lại ứng dụng FastDash để tiếp tục."
                         } else {
                             paymentScreenState = PaymentScreenState.PENDING
-                            paymentStatusMessage = "Khong the mo cong thanh toan VNPAY tren thiet bi nay."
+                            paymentStatusMessage = "Không thể mở cổng thanh toán VNPAY trên thiết bị này."
                         }
                     } finally {
                         paymentOpenLoading = false
@@ -387,6 +516,9 @@ class MainActivity : ComponentActivity() {
                     isLoggedIn = false
                     adminSelectedOrderId = null
                     clearCheckoutDrafts()
+                    forgotPasswordEmail = ""
+                    forgotPasswordCode = ""
+                    forgotPasswordResendAvailableAt = 0L
                     paymentOrderId = null
                     paymentUrl = null
                     paymentOrderCode = null
@@ -472,12 +604,47 @@ class MainActivity : ComponentActivity() {
                             onBackToLogin = { route = AppRoute.LOGIN },
                             onRegisterSuccess = { route = AppRoute.LOGIN }
                         )
+                        AppRoute.FORGOT_PASSWORD -> ForgotPasswordEmailScreen(
+                            initialEmail = forgotPasswordEmail,
+                            onBack = { route = AppRoute.LOGIN },
+                            onOtpSent = { email: String, resendAvailableAt: Long ->
+                                forgotPasswordEmail = email
+                                forgotPasswordCode = ""
+                                forgotPasswordResendAvailableAt = resendAvailableAt
+                                route = AppRoute.VERIFY_RESET_OTP
+                            }
+                        )
+                        AppRoute.VERIFY_RESET_OTP -> VerifyOtpScreen(
+                            initialEmail = forgotPasswordEmail,
+                            initialCode = forgotPasswordCode,
+                            resendAvailableAtMillis = forgotPasswordResendAvailableAt,
+                            onBack = { route = AppRoute.FORGOT_PASSWORD },
+                            onChangeEmail = { route = AppRoute.FORGOT_PASSWORD },
+                            onVerified = { email: String, code: String ->
+                                forgotPasswordEmail = email
+                                forgotPasswordCode = code
+                                route = AppRoute.RESET_PASSWORD
+                            },
+                            onCooldownChanged = { cooldown: Long -> forgotPasswordResendAvailableAt = cooldown }
+                        )
+                        AppRoute.RESET_PASSWORD -> ResetPasswordScreen(
+                            email = forgotPasswordEmail,
+                            code = forgotPasswordCode,
+                            onBack = { route = AppRoute.VERIFY_RESET_OTP },
+                            onResetSuccess = {
+                                forgotPasswordEmail = ""
+                                forgotPasswordCode = ""
+                                forgotPasswordResendAvailableAt = 0L
+                                route = AppRoute.LOGIN
+                            }
+                        )
                         else -> LoginScreen(
                             onLoginSuccess = {
                                 isLoggedIn = true
                                 route = if (paymentOrderId != null && !isAdmin()) AppRoute.PAYMENT else rootRoute()
                             },
-                            onOpenRegister = { route = AppRoute.REGISTER }
+                            onOpenRegister = { route = AppRoute.REGISTER },
+                            onOpenForgotPassword = { route = AppRoute.FORGOT_PASSWORD }
                         )
                     }
                 } else {
@@ -545,6 +712,8 @@ class MainActivity : ComponentActivity() {
 
                         AppRoute.HOME -> HomeScreen(
                             onOpenProduct = { product ->
+                                editingCartItem = null
+                                productDetailFromAi = false
                                 selectedProduct = product
                                 productDetailViewModel.loadDetails(product.id)
                                 route = AppRoute.PRODUCT_DETAIL
@@ -556,6 +725,8 @@ class MainActivity : ComponentActivity() {
                             },
                             onAddToCart = { product ->
                                 if (product.isCustomizable == 1) {
+                                    editingCartItem = null
+                                    productDetailFromAi = false
                                     selectedProduct = product
                                     productDetailViewModel.loadDetails(product.id)
                                     route = AppRoute.PRODUCT_DETAIL
@@ -601,8 +772,36 @@ class MainActivity : ComponentActivity() {
                             isLoggedIn = isLoggedIn,
                             onOrdersTabSelected = { orderViewModel.loadOrders() },
                             onAccountTabSelected = { profileViewModel.loadProfile(force = true) },
+                            onAiClick = { route = AppRoute.AI_ASSISTANT },
                             cartCount = cartState?.items?.size ?: 0,
                             cartTotal = cartState?.total ?: 0.0
+                        )
+                        AppRoute.AI_ASSISTANT -> AiAssistantScreen(
+                            messages = aiMessages,
+                            inputText = aiInputText,
+                            isLoading = aiLoading,
+                            errorMessage = aiErrorMessage,
+                            onInputChange = aiAssistantViewModel::onInputChange,
+                            onSendMessage = aiAssistantViewModel::sendMessage,
+                            onQuickPromptClick = aiAssistantViewModel::sendQuickPrompt,
+                            onOpenProduct = { product ->
+                                editingCartItem = null
+                                productDetailFromAi = true
+                                selectedProduct = ProductResponse(
+                                    id = product.id,
+                                    name = product.name,
+                                    description = product.description,
+                                    basePrice = product.basePrice,
+                                    imageUrl = product.imageUrl,
+                                    isCustomizable = 1,
+                                    categoryId = 0L,
+                                    categoryName = product.categoryName.orEmpty()
+                                )
+                                productDetailViewModel.loadDetails(product.id)
+                                route = AppRoute.PRODUCT_DETAIL
+                            },
+                            onBack = { route = AppRoute.HOME },
+                            onClearError = { aiAssistantViewModel.clearError() }
                         )
                         AppRoute.PRODUCT_DETAIL -> {
                             selectedProduct?.let { product ->
@@ -612,18 +811,41 @@ class MainActivity : ComponentActivity() {
                                     product = product,
                                     sizes = sizes,
                                     toppings = toppings,
+                                    initialQuantity = editingCartItem?.quantity ?: 1,
+                                    initialSizeId = editingCartItem?.productSizeId,
+                                    initialToppingIds = editingCartItem?.toppingIds ?: emptyList(),
+                                    initialSelectedToppingNames = editingCartItem?.toppingNames ?: emptyList(),
+                                    initialNote = editingCartItem?.note.orEmpty(),
                                     isLoading = productDetailLoading,
-                                    onBack = { route = rootRoute() },
-                                    onAddToCart = { pid, q, s, t ->
+                                    onBack = {
+                                        if (editingCartItem != null) {
+                                            editingCartItem = null
+                                            route = AppRoute.CART
+                                        } else {
+                                            route = if (productDetailFromAi) AppRoute.AI_ASSISTANT else rootRoute()
+                                        }
+                                    },
+                                    onAddToCart = { pid, q, s, t, note ->
                                         clearCheckoutDrafts()
-                                        cartViewModel.addToCart(pid, q, s, t)
+                                        editingCartItem?.let { cartItem ->
+                                            cartViewModel.replaceCartItem(
+                                                oldItemId = cartItem.itemId,
+                                                productId = pid,
+                                                quantity = q,
+                                                productSizeId = s,
+                                                toppingIds = t,
+                                                note = note
+                                            )
+                                        } ?: cartViewModel.addToCart(pid, q, s, t, note)
+                                        editingCartItem = null
                                         route = AppRoute.CART
                                     },
-                                    onBuyNow = { pid, q, s, t, total ->
+                                    onBuyNow = { pid, q, s, t, note, total ->
                                         directCheckoutItem = OrderItemRequest(
                                             productId = pid,
                                             productSizeId = s,
                                             quantity = q,
+                                            note = note,
                                             toppingIds = t
                                         )
                                         directCheckoutTotal = total
@@ -682,11 +904,11 @@ class MainActivity : ComponentActivity() {
                                         createdAt = safeOrderCreatedAt(
                                             if (order.id == lastCreatedOrderId && order.createdAt.isNullOrBlank()) lastCreatedOrderCreatedAt else order.createdAt
                                         ),
-                                        receiverName = order.receiverName.normalizeVietnameseText().ifBlank { "Chua co thong tin" },
-                                        receiverPhone = order.receiverPhone.normalizeVietnameseText().ifBlank { "Chua co thong tin" },
-                                        deliveryAddress = order.deliveryAddress.normalizeVietnameseText().ifBlank { "Chua co dia chi giao hang" },
+                                        receiverName = order.receiverName.normalizeVietnameseText().ifBlank { "Chưa có thông tin" },
+                                        receiverPhone = order.receiverPhone.normalizeVietnameseText().ifBlank { "Chưa có thông tin" },
+                                        deliveryAddress = order.deliveryAddress.normalizeVietnameseText().ifBlank { "Chưa có địa chỉ giao hàng" },
                                         branchName = order.branchName.normalizeVietnameseText().ifBlank {
-                                            if (order.id == lastCreatedOrderId) lastCreatedBranchName.normalizeVietnameseText().ifBlank { "Chua co thong tin" } else "Chua co thong tin"
+                                            if (order.id == lastCreatedOrderId) lastCreatedBranchName.normalizeVietnameseText().ifBlank { "Chưa có thông tin" } else "Chưa có thông tin"
                                         },
                                         branchAddress = order.branchAddress.normalizeVietnameseText().ifBlank {
                                             if (order.id == lastCreatedOrderId) lastCreatedBranchAddress.normalizeVietnameseText() else ""
@@ -698,6 +920,7 @@ class MainActivity : ComponentActivity() {
                                         shippingFee = order.shippingFee,
                                         discountAmount = order.discountAmount,
                                         totalAmount = totalAmount,
+                                        paymentUrl = order.paymentUrl.orEmpty(),
                                         note = order.note.normalizeVietnameseText().ifBlank {
                                             if (order.id == lastCreatedOrderId) lastCreatedOrderNote.normalizeVietnameseText() else ""
                                         },
@@ -714,11 +937,58 @@ class MainActivity : ComponentActivity() {
                                         }
                                     ),
                                     onBack = { route = AppRoute.ORDER_HISTORY },
-                                    onReorder = { route = AppRoute.HOME },
+                                    onReorder = {
+                                        scope.launch {
+                                            runCatching { buildReorderCheckoutDraft(order) }
+                                                .onSuccess { draft ->
+                                                    clearCheckoutDrafts()
+                                                    reorderCheckoutDraft = draft
+                                                    checkoutPickedLocation = draft.pickedLocation
+                                                    checkoutCurrentLocation = draft.pickedLocation
+                                                    checkoutDraftName = draft.receiverName
+                                                    checkoutDraftPhone = draft.receiverPhone
+                                                    checkoutDraftAddressDetail = ""
+                                                    checkoutDraftNote = draft.note
+                                                    route = AppRoute.CHECKOUT
+                                                }
+                                                .onFailure { error ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        error.message ?: "Khong the dat lai don nay",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                        }
+                                    },
                                     onCancelOrder = {
                                         scope.launch {
                                             if (orderViewModel.cancelOrder(it.id)) {
                                                 selectedOrderId?.let { id -> orderViewModel.loadOrderDetail(id) }
+                                            }
+                                        }
+                                    },
+                                    onRetryPayment = {
+                                        paymentOrderId = it.id.takeIf { id -> id > 0L }
+                                        paymentUrl = it.paymentUrl.ifBlank { null }
+                                        paymentOrderCode = it.orderCode
+                                        paymentAmount = it.totalAmount
+                                        paymentScreenState = if (it.paymentStatus.trim().uppercase() == "FAILED" || it.status.trim().uppercase() == "PAYMENT_FAILED") {
+                                            PaymentScreenState.FAILED
+                                        } else {
+                                            PaymentScreenState.PENDING
+                                        }
+                                        paymentStatusMessage = null
+                                        paymentReturnArmed = false
+                                        paymentShouldCheckOnEnter = false
+                                        paymentOrderId?.let { orderId ->
+                                            pendingPaymentStore.save(orderId, paymentUrl)
+                                            route = AppRoute.PAYMENT
+                                            scope.launch {
+                                                openPendingPayment(
+                                                    forceRefreshUrl = paymentUrl.isNullOrBlank() ||
+                                                        it.paymentStatus.trim().uppercase() == "FAILED" ||
+                                                        it.status.trim().uppercase() == "PAYMENT_FAILED"
+                                                )
                                             }
                                         }
                                     }
@@ -733,8 +1003,13 @@ class MainActivity : ComponentActivity() {
                             isLoading = cartLoading,
                             errorMessage = cartMessage,
                             onBack = {
+                                editingCartItem = null
                                 clearCheckoutDrafts()
                                 route = rootRoute()
+                            },
+                            onEditItem = {
+                                openCartItemEditor(it)
+                                route = AppRoute.PRODUCT_DETAIL
                             },
                             onUpdateQuantity = { itemId, quantity ->
                                 cartViewModel.updateCartItem(itemId, quantity)
@@ -746,18 +1021,21 @@ class MainActivity : ComponentActivity() {
                                 route = AppRoute.CHECKOUT
                             },
                             onRetry = { cartViewModel.loadCart() },
-                            onBrowseMenu = { route = rootRoute() }
+                            onBrowseMenu = {
+                                editingCartItem = null
+                                route = rootRoute()
+                            }
                         )
                         AppRoute.CHECKOUT -> CheckoutScreen(
-                            subtotal = directCheckoutItem?.let { directCheckoutTotal } ?: (cartState?.subtotal ?: 0.0),
+                            subtotal = reorderCheckoutDraft?.subtotal ?: directCheckoutItem?.let { directCheckoutTotal } ?: (cartState?.subtotal ?: 0.0),
                             initialFullName = checkoutDraftName.ifBlank { profileState?.fullName ?: "" },
                             initialPhone = checkoutDraftPhone.ifBlank { profileState?.phone ?: "" },
-                            initialAddress = profileState?.address ?: "",
+                            initialAddress = reorderCheckoutDraft?.deliveryAddress?.ifBlank { profileState?.address ?: "" } ?: (profileState?.address ?: ""),
                             initialAddressDetail = checkoutDraftAddressDetail,
                             initialNote = checkoutDraftNote,
                             pickedLocation = checkoutPickedLocation,
                             savedLocations = savedDeliveryLocations,
-                            onBack = { route = if (directCheckoutItem != null) AppRoute.PRODUCT_DETAIL else AppRoute.CART },
+                            onBack = { route = checkoutBackRoute() },
                             onOpenMapPicker = { route = AppRoute.PICK_LOCATION },
                             onCurrentLocationChanged = { checkoutCurrentLocation = it },
                             onDeliveryLocationChanged = { checkoutPickedLocation = it },
@@ -767,7 +1045,8 @@ class MainActivity : ComponentActivity() {
                             onNoteChanged = { checkoutDraftNote = it },
                             onConfirm = { request ->
                                 scope.launch {
-                                    val createdAtFallback = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                                    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+                                    val createdAtFallback = sdf.format(Calendar.getInstance().time)
                                     val createdOrder = directCheckoutItem?.let { item ->
                                         orderViewModel.createOrder(
                                             CreateOrderRequest(
@@ -783,10 +1062,25 @@ class MainActivity : ComponentActivity() {
                                                 items = listOf(item)
                                             )
                                         )
+                                    } ?: reorderCheckoutDraft?.let { draft ->
+                                        orderViewModel.createOrder(
+                                            CreateOrderRequest(
+                                                branchId = request.branchId,
+                                                deliveryType = request.deliveryType,
+                                                receiverName = request.receiverName,
+                                                receiverPhone = request.receiverPhone,
+                                                deliveryAddress = request.deliveryAddress,
+                                                deliveryLatitude = request.deliveryLatitude,
+                                                deliveryLongitude = request.deliveryLongitude,
+                                                note = request.note,
+                                                paymentMethod = request.paymentMethod,
+                                                items = draft.items
+                                            )
+                                        )
                                     } ?: orderViewModel.createOrderFromCart(request)
 
                                     if (createdOrder != null) {
-                                        if (directCheckoutItem == null) {
+                                        if (directCheckoutItem == null && reorderCheckoutDraft == null) {
                                             cartViewModel.loadCart()
                                         }
                                         orderViewModel.loadOrders()
@@ -927,3 +1221,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+

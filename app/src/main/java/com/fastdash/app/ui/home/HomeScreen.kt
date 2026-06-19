@@ -10,12 +10,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,12 +29,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Assignment
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocalPizza
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.Description
@@ -50,14 +49,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -78,8 +73,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelProvider
@@ -99,11 +96,15 @@ import com.fastdash.app.viewmodel.HomeViewModelFactory
 import kotlinx.coroutines.delay
 
 private val FastDashRed = Color(0xFFD6092F)
-private val FastDashRedDark = Color(0xFF9B0622)
+private val FastDashBrandRed = Color(0xFFE31837)
+private val FastDashBrandBlue = Color(0xFF1565C0)
 private val LightGrey = Color(0xFFF7F7F7)
 private val PrimaryBlack = Color(0xFF1F1F1F)
 private val SurfaceWhite = Color.White
 private val TextGrey = Color(0xFF777777)
+private val UtilityTitleColor = Color(0xFF1F2937)
+private val UtilitySubtitleColor = Color(0xFF6B7280)
+private val UtilityIconBackground = Color(0xFFFFEEF2)
 
 @Composable
 fun HomeScreen(
@@ -122,6 +123,7 @@ fun HomeScreen(
     isLoggedIn: Boolean = true,
     onOrdersTabSelected: () -> Unit = {},
     onAccountTabSelected: () -> Unit = {},
+    onAiClick: () -> Unit = {},
     cartCount: Int = 0,
     cartTotal: Double = 0.0
 ) {
@@ -155,7 +157,11 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             if (selectedTab == BottomTab.Home) {
-                HomeHeader(cartCount = cartCount, profileFullName = profileFullName, onCartClick = onCheckout)
+                HomeHeader(
+                    cartCount = cartCount,
+                    onCartClick = onCheckout,
+                    onProfileClick = { selectedTab = BottomTab.Account }
+                )
             }
         },
         bottomBar = {
@@ -163,7 +169,11 @@ fun HomeScreen(
                 if (cartCount > 0 && (selectedTab == BottomTab.Home || selectedTab == BottomTab.Menu)) {
                     CartBar(count = cartCount, total = cartTotal, onClick = onCheckout)
                 }
-                FastDashBottomNavigation(selectedTab = selectedTab, onSelectTab = { selectedTab = it })
+                FastDashBottomNavigation(
+                    selectedTab = selectedTab,
+                    onSelectTab = { selectedTab = it },
+                    onAiClick = onAiClick
+                )
             }
         },
         containerColor = LightGrey,
@@ -182,6 +192,8 @@ fun HomeScreen(
                     products = products,
                     categories = categories,
                     deliveryAddress = deliveryAddress,
+                    hasFloatingCart = cartCount > 0,
+                    onOpenAiAssistant = onAiClick,
                     onOpenProduct = onOpenProduct,
                     onAddToCart = onAddToCart,
                     onSelectCategory = {
@@ -214,6 +226,8 @@ private fun HomeContent(
     products: List<ProductResponse>,
     categories: List<CategoryResponse>,
     deliveryAddress: String,
+    hasFloatingCart: Boolean,
+    onOpenAiAssistant: () -> Unit,
     onOpenProduct: (ProductResponse) -> Unit,
     onAddToCart: (ProductResponse) -> Unit,
     onSelectCategory: (CategoryResponse) -> Unit,
@@ -222,59 +236,135 @@ private fun HomeContent(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
+        contentPadding = PaddingValues(bottom = if (hasFloatingCart) 196.dp else 132.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         item { PromoBanner(banners = rememberPromoBanners(products), onPrimaryClick = { products.firstOrNull()?.let(onOpenProduct) ?: onOpenMenu() }) }
-        item { DeliveryAddressCard(address = deliveryAddress, onClick = onOpenMenu) }
         item { RecommendedSection(products = products, onOpenProduct = onOpenProduct, onAddToCart = onAddToCart) }
         item { CategorySection(categories = categories, onOpenMenu = onOpenMenu, onSelectCategory = onSelectCategory) }
-        item { QuickActionSection(onOpenOrders = onOpenOrders) }
+        item { HomeUtilitiesSection(onOpenOrders = onOpenOrders, onOpenAiAssistant = onOpenAiAssistant) }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeHeader(cartCount: Int, profileFullName: String, onCartClick: () -> Unit) {
-    CenterAlignedTopAppBar(
+private fun HomeHeader(
+    cartCount: Int,
+    onCartClick: () -> Unit,
+    onProfileClick: () -> Unit
+) {
+    androidx.compose.material3.TopAppBar(
         title = {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Image(
-                    painter = painterResource(id = R.drawable.logo2),
-                    contentDescription = "FastDash Logo",
-                    modifier = Modifier.height(52.dp),
-                    contentScale = ContentScale.Fit
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = if (profileFullName.isNotBlank()) "Hôm nay bạn muốn ăn gì?" else "FastDash luôn sẵn sàng phục vụ",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryBlack,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            FastDashLogo(modifier = Modifier.padding(start = 4.dp))
         },
         actions = {
-            Surface(modifier = Modifier.padding(end = 16.dp), shape = CircleShape, color = SurfaceWhite, shadowElevation = 6.dp) {
-                BadgedBox(
-                    badge = {
-                        if (cartCount > 0) {
-                            Badge(containerColor = FastDashRed, contentColor = Color.White) {
-                                Text(text = cartCount.coerceAtMost(99).toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.padding(end = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HeaderActionButton(
+                    onClick = onProfileClick,
+                    icon = Icons.Filled.Person,
+                    contentDescription = "Tài khoản"
+                )
+                Surface(shape = CircleShape, color = SurfaceWhite, shadowElevation = 6.dp) {
+                    BadgedBox(
+                        badge = {
+                            if (cartCount > 0) {
+                                Badge(containerColor = FastDashBrandRed, contentColor = Color.White) {
+                                    Text(text = cartCount.coerceAtMost(99).toString(), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
-                    }
-                ) {
-                    IconButton(onClick = onCartClick) {
-                        Icon(Icons.Filled.ShoppingCart, contentDescription = "Giỏ hàng", tint = PrimaryBlack, modifier = Modifier.size(24.dp))
+                    ) {
+                        IconButton(onClick = onCartClick) {
+                            Icon(Icons.Filled.ShoppingCart, contentDescription = "Giỏ hàng", tint = PrimaryBlack, modifier = Modifier.size(24.dp))
+                        }
                     }
                 }
             }
         },
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = LightGrey)
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFFFFBFC))
     )
+}
+
+@Composable
+private fun HeaderActionButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String
+) {
+    Surface(shape = CircleShape, color = SurfaceWhite, shadowElevation = 6.dp) {
+        IconButton(onClick = onClick) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = PrimaryBlack,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun FastDashLogo(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Biểu tượng F cách điệu với viền kép và gradient
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(FastDashBrandRed, Color(0xFFB71C1C))
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .padding(2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(10.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "F",
+                    color = Color.White,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+        }
+
+        // Chữ FastDash với kerning (giãn cách) rộng và phong cách thể thao/tốc độ
+        Text(
+            text = buildAnnotatedString {
+                withStyle(style = androidx.compose.ui.text.SpanStyle(
+                    color = PrimaryBlack,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.5.sp
+                )) {
+                    append("FAST")
+                }
+                withStyle(style = androidx.compose.ui.text.SpanStyle(
+                    color = FastDashBrandRed,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                )) {
+                    append("DASH")
+                }
+            },
+            fontSize = 19.sp,
+            maxLines = 1
+        )
+    }
 }
 
 @Composable
@@ -293,48 +383,20 @@ private fun PromoBanner(banners: List<PromoBannerUiModel>, onPrimaryClick: () ->
         HorizontalPager(state = pagerState, contentPadding = PaddingValues(horizontal = 16.dp), pageSpacing = 12.dp) { page ->
             val banner = banners[page]
             Card(
-                modifier = Modifier.fillMaxWidth().height(220.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .clickable { onPrimaryClick() },
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize()
-                        .background(Brush.linearGradient(colors = listOf(banner.startColor, banner.endColor)))
-                        .padding(20.dp)
-                ) {
-                    Box(Modifier.align(Alignment.TopEnd).size(140.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)))
-                    Box(Modifier.align(Alignment.BottomEnd).size(160.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.08f)))
-                    Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1.1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Surface(shape = RoundedCornerShape(50), color = Color.White.copy(alpha = 0.14f)) {
-                                Text(banner.eyebrow, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                            Text(banner.title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 28.sp)
-                            Text(banner.subtitle, color = Color.White.copy(alpha = 0.88f), fontSize = 14.sp, lineHeight = 20.sp)
-                            Text(banner.price, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Black)
-                            Button(
-                                onClick = onPrimaryClick,
-                                modifier = Modifier.height(46.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = banner.endColor),
-                                shape = RoundedCornerShape(14.dp),
-                                contentPadding = PaddingValues(horizontal = 18.dp)
-                            ) { Text("Đặt ngay", fontWeight = FontWeight.Bold) }
-                        }
-                        Box(modifier = Modifier.weight(0.9f), contentAlignment = Alignment.Center) {
-                            if (banner.imageUrl.isNullOrBlank()) {
-                                Icon(banner.fallbackIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(100.dp))
-                            } else {
-                                AsyncImage(
-                                    model = ImageUtils.buildImageRequest(LocalContext.current, banner.imageUrl),
-                                    contentDescription = banner.title,
-                                    modifier = Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(22.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                        }
-                    }
-                }
+                Image(
+                    painter = painterResource(id = banner.drawableRes),
+                    contentDescription = banner.contentDescription,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
             }
         }
         Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.Center) {
@@ -350,34 +412,6 @@ private fun PromoBanner(banners: List<PromoBannerUiModel>, onPrimaryClick: () ->
     }
 }
 
-@Composable
-private fun DeliveryAddressCard(address: String, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { onClick() },
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
-    ) {
-        Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Surface(modifier = Modifier.size(48.dp), shape = RoundedCornerShape(16.dp), color = FastDashRed.copy(alpha = 0.1f)) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.LocationOn, contentDescription = null, tint = FastDashRed, modifier = Modifier.size(24.dp))
-                }
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = address.ifBlank { "Vui lòng chọn giao hàng để đặt món" },
-                    fontSize = 15.sp,
-                    color = PrimaryBlack,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextGrey)
-        }
-    }
-}
 
 @Composable
 private fun RecommendedSection(
@@ -385,8 +419,10 @@ private fun RecommendedSection(
     onOpenProduct: (ProductResponse) -> Unit,
     onAddToCart: (ProductResponse) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SectionHeaderRow(title = "Bạn sẽ thích")
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        StylizedSectionHeader(
+            title = "Bạn sẽ thích",
+        )
         if (products.isEmpty()) {
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = SurfaceWhite)) {
                 Text("Thực đơn đang được cập nhật. Vui lòng quay lại sau ít phút.", modifier = Modifier.padding(20.dp), color = TextGrey, fontSize = 14.sp)
@@ -417,26 +453,39 @@ private fun CategorySection(categories: List<CategoryResponse>, onOpenMenu: () -
 }
 
 @Composable
-private fun QuickActionSection(onOpenOrders: () -> Unit) {
+private fun HomeUtilitiesSection(
+    onOpenOrders: () -> Unit,
+    onOpenNearbyStores: () -> Unit = {},
+    onOpenAiAssistant: () -> Unit = {}
+) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         TodayOfferCard()
-        SectionHeaderRow(title = "Dịch vụ nhanh")
-        val actions = listOf(
-            QuickActionUiModel(Icons.Outlined.ShoppingBag, "Theo dõi đơn hàng", onOpenOrders),
-            QuickActionUiModel(Icons.Outlined.Storefront, "Cửa hàng gần bạn", {}),
-            QuickActionUiModel(Icons.AutoMirrored.Outlined.HelpOutline, "Hỗ trợ", {}),
-            QuickActionUiModel(Icons.Outlined.Description, "Điều khoản", {})
-        )
-        Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            actions.chunked(2).forEach { rowItems ->
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    rowItems.forEach { action ->
-                        QuickActionGridItem(action = action, modifier = Modifier.weight(1f))
-                    }
-                    if (rowItems.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
+        SectionHeaderRow(title = "Tiện ích cho bạn")
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TrackingOrderCard(
+                title = "Theo dõi đơn",
+                subtitle = "Cập nhật trạng thái giao hàng",
+                buttonText = "Xem ngay",
+                onClick = onOpenOrders
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                UtilitySmallCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Outlined.Storefront,
+                    title = "Cửa hàng gần bạn",
+                    subtitle = "Tìm FastDash gần nhất",
+                    onClick = onOpenNearbyStores
+                )
+                UtilitySmallCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.AutoMirrored.Outlined.HelpOutline,
+                    title = "Trợ lý AI",
+                    subtitle = "Gợi ý món phù hợp",
+                    onClick = onOpenAiAssistant
+                )
             }
         }
     }
@@ -487,24 +536,72 @@ private fun RecommendedProductCard(product: ProductResponse, onClick: () -> Unit
 @Composable
 private fun CategoryCard(category: CategoryResponse, visual: CategoryVisual, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.width(148.dp).height(168.dp).clickable { onClick() },
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        modifier = Modifier
+            .width(136.dp)
+            .height(160.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(visual.colors)).padding(14.dp)) {
-            Box(Modifier.align(Alignment.TopEnd).size(68.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.12f)))
-            Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                Surface(modifier = Modifier.size(42.dp), shape = RoundedCornerShape(14.dp), color = Color.White.copy(alpha = 0.18f)) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(visual.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
-                    }
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Ảnh hoặc Nền Gradient phủ toàn bộ Card
+            if (category.imageUrl.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(visual.colors)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = visual.icon,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.5f),
+                        modifier = Modifier.size(48.dp)
+                    )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(category.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    category.description?.takeIf { it.isNotBlank() }?.let {
-                        Text(it, color = Color.White.copy(alpha = 0.88f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    }
+            } else {
+                AsyncImage(
+                    model = ImageUtils.buildImageRequest(LocalContext.current, category.imageUrl),
+                    contentDescription = category.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
+            // Lớp phủ Gradient đen mờ ở dưới để nổi bật chữ trắng
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f)),
+                            startY = 100f
+                        )
+                    )
+            )
+
+            // Chữ hiển thị đè lên trên ảnh ở góc dưới
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(14.dp)
+            ) {
+                Text(
+                    text = category.name,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                category.description?.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        text = it,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -516,25 +613,82 @@ private fun TodayOfferCard() {
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
     ) {
-        Row(
+        Image(
+            painter = painterResource(id = R.drawable.deal),
+            contentDescription = "Ưu đãi hôm nay",
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Brush.linearGradient(listOf(FastDashRed, FastDashRedDark)))
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .height(96.dp),
+            contentScale = ContentScale.Crop
+        )
+    }
+}
+
+@Composable
+private fun TrackingOrderCard(
+    title: String,
+    subtitle: String,
+    buttonText: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Ưu đãi hôm nay", color = Color.White.copy(alpha = 0.88f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Text("Combo pizza + nước giảm đến 30%", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 22.sp)
+            Surface(
+                modifier = Modifier.size(54.dp),
+                shape = RoundedCornerShape(18.dp),
+                color = UtilityIconBackground
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Assignment,
+                        contentDescription = null,
+                        tint = FastDashRed,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
-            Surface(shape = RoundedCornerShape(12.dp), color = Color.White.copy(alpha = 0.16f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
-                    text = "Xem ngay",
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    text = title,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = UtilityTitleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 13.sp,
+                    color = UtilitySubtitleColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Button(
+                onClick = onClick,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = FastDashRed),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = buttonText,
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -545,50 +699,87 @@ private fun TodayOfferCard() {
 }
 
 @Composable
-private fun QuickActionGridItem(action: QuickActionUiModel, modifier: Modifier = Modifier) {
+private fun UtilitySmallCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = modifier.clickable { action.onClick() },
-        shape = RoundedCornerShape(20.dp),
+        modifier = modifier
+            .clickable { onClick() },
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Surface(
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(44.dp),
                 shape = RoundedCornerShape(14.dp),
-                color = FastDashRed.copy(alpha = 0.1f)
+                color = UtilityIconBackground
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(action.icon, contentDescription = null, tint = FastDashRed)
+                    Icon(icon, contentDescription = null, tint = FastDashRed)
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(action.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = UtilityTitleColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = UtilitySubtitleColor,
+                    lineHeight = 16.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
 }
 
 @Composable
-private fun QuickActionItem(action: QuickActionUiModel) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { action.onClick() },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+private fun StylizedSectionHeader(title: String, subtitle: String? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Surface(modifier = Modifier.size(42.dp), shape = RoundedCornerShape(14.dp), color = FastDashRed.copy(alpha = 0.1f)) {
-                Box(contentAlignment = Alignment.Center) { Icon(action.icon, contentDescription = null, tint = FastDashRed) }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(action.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack)
-            }
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = TextGrey)
-        }
+        Icon(
+            imageVector = Icons.Filled.LocalPizza,
+            contentDescription = null,
+            tint = PrimaryBlack,
+            modifier = Modifier.size(28.dp)
+        )
+        
+        Text(
+            text = title.uppercase(),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Black,
+            color = PrimaryBlack,
+            letterSpacing = 0.5.sp
+        )
+        
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(Color.LightGray.copy(alpha = 0.6f))
+        )
     }
 }
 
@@ -605,34 +796,148 @@ private fun SectionHeaderRow(title: String, actionText: String? = null, onAction
 }
 
 @Composable
-private fun FastDashBottomNavigation(selectedTab: BottomTab, onSelectTab: (BottomTab) -> Unit) {
-    NavigationBar(containerColor = SurfaceWhite, tonalElevation = 10.dp, modifier = Modifier.navigationBarsPadding()) {
-        BottomTab.entries.forEach { tab ->
-            val isSelected = selectedTab == tab
-            NavigationBarItem(
-                selected = isSelected,
-                onClick = { onSelectTab(tab) },
-                icon = {
-                    val icon = when (tab) {
-                        BottomTab.Home -> if (isSelected) Icons.Filled.Home else Icons.Outlined.Home
-                        BottomTab.Menu -> if (isSelected) Icons.Filled.LocalPizza else Icons.Outlined.LocalPizza
-                        BottomTab.Orders -> if (isSelected) Icons.AutoMirrored.Filled.Assignment else Icons.AutoMirrored.Outlined.Assignment
-                        BottomTab.Account -> if (isSelected) Icons.Filled.Person else Icons.Outlined.Person
-                    }
-                    Box(modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(if (isSelected) FastDashRed.copy(alpha = 0.12f) else Color.Transparent).padding(horizontal = 10.dp, vertical = 6.dp)) {
-                        Icon(icon, contentDescription = tab.label)
-                    }
-                },
-                label = { Text(tab.label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = FastDashRed,
-                    selectedTextColor = FastDashRed,
-                    unselectedIconColor = TextGrey,
-                    unselectedTextColor = TextGrey,
-                    indicatorColor = Color.Transparent
+private fun FastDashBottomNavigation(
+    selectedTab: BottomTab,
+    onSelectTab: (BottomTab) -> Unit,
+    onAiClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter),
+            color = SurfaceWhite,
+            shape = RoundedCornerShape(28.dp),
+            shadowElevation = 10.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                BottomNavItem(
+                    tab = BottomTab.Home,
+                    isSelected = selectedTab == BottomTab.Home,
+                    onClick = { onSelectTab(BottomTab.Home) }
                 )
+                BottomNavItem(
+                    tab = BottomTab.Menu,
+                    isSelected = selectedTab == BottomTab.Menu,
+                    onClick = { onSelectTab(BottomTab.Menu) }
+                )
+                Spacer(modifier = Modifier.width(72.dp))
+                BottomNavItem(
+                    tab = BottomTab.Orders,
+                    isSelected = selectedTab == BottomTab.Orders,
+                    onClick = { onSelectTab(BottomTab.Orders) }
+                )
+                BottomNavItem(
+                    tab = BottomTab.Account,
+                    isSelected = selectedTab == BottomTab.Account,
+                    onClick = { onSelectTab(BottomTab.Account) }
+                )
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-30).dp)
+                .size(76.dp)
+                .clickable { onAiClick() },
+            shape = CircleShape,
+            color = Color.White,
+            shadowElevation = 16.dp
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(4.dp)
+                    .background(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                FastDashBrandRed,
+                                Color(0xFF6200EE),
+                                FastDashBrandBlue,
+                                Color(0xFF03DAC6),
+                                FastDashBrandRed
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+                    .padding(3.dp)
+                    .background(Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                // Hiệu ứng phát sáng nhẹ bên trong
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(FastDashBrandRed.copy(alpha = 0.15f), Color.Transparent)
+                            ),
+                            shape = CircleShape
+                        )
+                )
+                Image(
+                    painter = painterResource(id = R.drawable.logo_ai),
+                    contentDescription = "Trợ lý món ăn",
+                    modifier = Modifier.size(38.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomNavItem(
+    tab: BottomTab,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val icon = when (tab) {
+        BottomTab.Home -> if (isSelected) Icons.Filled.Home else Icons.Outlined.Home
+        BottomTab.Menu -> if (isSelected) Icons.Filled.LocalPizza else Icons.Outlined.LocalPizza
+        BottomTab.Orders -> if (isSelected) Icons.AutoMirrored.Filled.Assignment else Icons.AutoMirrored.Outlined.Assignment
+        BottomTab.Account -> if (isSelected) Icons.Filled.Person else Icons.Outlined.Person
+    }
+
+    Column(
+        modifier = Modifier
+            .width(68.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (isSelected) FastDashRed.copy(alpha = 0.12f) else Color.Transparent)
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = tab.label,
+                tint = if (isSelected) FastDashRed else TextGrey
             )
         }
+        Text(
+            text = tab.label,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = if (isSelected) FastDashRed else TextGrey
+        )
     }
 }
 
@@ -657,20 +962,8 @@ private fun CartBar(count: Int, total: Double, onClick: () -> Unit) {
 }
 
 private data class PromoBannerUiModel(
-    val eyebrow: String,
-    val title: String,
-    val subtitle: String,
-    val price: String,
-    val imageUrl: String?,
-    val fallbackIcon: ImageVector,
-    val startColor: Color,
-    val endColor: Color
-)
-
-private data class QuickActionUiModel(
-    val icon: ImageVector,
-    val title: String,
-    val onClick: () -> Unit
+    val drawableRes: Int,
+    val contentDescription: String
 )
 
 private data class CategoryVisual(
@@ -680,21 +973,22 @@ private data class CategoryVisual(
 
 @Composable
 private fun rememberPromoBanners(products: List<ProductResponse>): List<PromoBannerUiModel> {
-    val productImages = products.mapNotNull { it.imageUrl.takeIf { url -> !url.isNullOrBlank() } }
     return remember(products) {
         listOf(
-            PromoBannerUiModel("Ưu đãi hôm nay", "Combo ngon mỗi ngày", "Pizza, gà rán, nước uống", "79.000đ", productImages.getOrNull(0), Icons.Outlined.RestaurantMenu, FastDashRed, FastDashRedDark),
-            PromoBannerUiModel("Giao nhanh 24/7", "Bữa tối trọn vị", "Combo gia đình", "249.000đ", productImages.getOrNull(1), Icons.Filled.LocalPizza, Color(0xFF1F1F1F), Color(0xFF3A3A3A)),
-            PromoBannerUiModel("Đặt nhanh", "Thêm món, thêm vui", "Pizza và gà rán", "129.000đ", productImages.getOrNull(2), Icons.Outlined.ShoppingBag, Color(0xFFE24A2A), Color(0xFFD6092F))
+            PromoBannerUiModel(R.drawable.pannel1, "Khuyến mãi 1"),
+            PromoBannerUiModel(R.drawable.pannel2, "Khuyến mãi 2"),
+            PromoBannerUiModel(R.drawable.panel3, "Khuyến mãi 3"),
+            PromoBannerUiModel(R.drawable.pannel4, "Khuyến mãi 4"),
+            PromoBannerUiModel(R.drawable.pannel5, "Khuyến mãi 5")
         )
     }
 }
 
 private fun fallbackCategories(): List<CategoryResponse> = listOf(
-    CategoryResponse(1L, "Pizza", "Đế giòn, phô mai kéo sợi"),
-    CategoryResponse(2L, "Gà rán", "Giòn rụm, đậm vị"),
-    CategoryResponse(3L, "Combo", "Tiết kiệm cho nhóm bạn"),
-    CategoryResponse(4L, "Nước uống", "Mát lạnh, dễ chọn món")
+    CategoryResponse(1L, "Pizza", "Đế giòn, phô mai kéo sợi", null),
+    CategoryResponse(2L, "Gà rán", "Giòn rụm, đậm vị", null),
+    CategoryResponse(3L, "Combo", "Tiết kiệm cho nhóm bạn", null),
+    CategoryResponse(4L, "Nước uống", "Mát lạnh, dễ chọn món", null)
 )
 
 private fun categoryVisual(name: String): CategoryVisual {
@@ -714,8 +1008,3 @@ private enum class BottomTab(val label: String) {
     Orders("Đơn hàng"),
     Account("Tài khoản")
 }
-
-
-
-
-

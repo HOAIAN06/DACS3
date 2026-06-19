@@ -53,8 +53,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -79,6 +82,7 @@ fun CartScreen(
     isLoading: Boolean = false,
     errorMessage: String? = null,
     onBack: () -> Unit = {},
+    onEditItem: (CartItemResponse) -> Unit = {},
     onUpdateQuantity: (itemId: Long, quantity: Int) -> Unit = { _, _ -> },
     onRemoveItem: (Long) -> Unit = {},
     onCheckout: () -> Unit = {},
@@ -118,6 +122,7 @@ fun CartScreen(
                         items(cartItems, key = { it.id }) { item ->
                             CartItemCard(
                                 item = item,
+                                onEditItem = { onEditItem(item) },
                                 onIncrease = { onUpdateQuantity(item.id, item.quantity + 1) },
                                 onDecrease = { if (item.quantity > 1) onUpdateQuantity(item.id, item.quantity - 1) },
                                 onRemoveItem = { pendingDeleteItem = item }
@@ -161,6 +166,7 @@ private fun CartHeader(itemCount: Int, onBack: () -> Unit) {
 @Composable
 private fun CartItemCard(
     item: CartItemResponse,
+    onEditItem: () -> Unit,
     onIncrease: () -> Unit,
     onDecrease: () -> Unit,
     onRemoveItem: () -> Unit
@@ -173,23 +179,22 @@ private fun CartItemCard(
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-                CartItemImage(imageUrl = item.productImageUrl, contentDescription = item.resolvedProductName)
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(item.resolvedProductName.normalizeVietnameseText(), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    item.resolvedSizeName?.normalizeVietnameseText()?.takeIf { it.isNotBlank() }?.let {
-                        Text("Size $it", fontSize = 12.sp, color = TextGrey)
-                    }
-                    if (item.toppings.isNotEmpty()) {
-                        Text(
-                            "Topping: ${item.toppings.joinToString(", ") { topping -> topping.name.normalizeVietnameseText() }}",
-                            fontSize = 12.sp,
-                            color = TextGrey,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    item.note?.normalizeVietnameseText()?.takeIf { it.isNotBlank() }?.let {
-                        Text("Ghi chú: $it", fontSize = 12.sp, color = TextGrey, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable(enabled = item.productId != null, onClick = onEditItem)
+                        .padding(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    CartItemImage(imageUrl = item.productImageUrl, contentDescription = item.resolvedProductName)
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(item.resolvedProductName.normalizeVietnameseText(), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PrimaryBlack, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        CartItemSelectionDetails(item = item)
+                        item.note?.normalizeVietnameseText()?.takeIf { it.isNotBlank() }?.let {
+                            Text("Ghi chú: $it", fontSize = 11.sp, color = TextGrey, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
                 IconButton(onClick = onRemoveItem, modifier = Modifier.size(32.dp)) {
@@ -200,6 +205,52 @@ private fun CartItemCard(
                 CartQuantitySelector(quantity = item.quantity, onDecrease = onDecrease, onIncrease = onIncrease, canDecrease = item.quantity > 1)
                 Text(CurrencyUtils.formatVnd(item.totalPrice), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = FastDashRed)
             }
+        }
+    }
+}
+
+@Composable
+private fun CartItemSelectionDetails(item: CartItemResponse) {
+    val sizeLabel = item.resolvedSizeName
+        ?.normalizeVietnameseText()
+        ?.takeIf { it.isNotBlank() }
+    val toppings = item.toppings
+        .mapNotNull { it.name?.normalizeVietnameseText()?.takeIf { name -> name.isNotBlank() } }
+
+    if (sizeLabel == null && toppings.isEmpty()) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(vertical = 2.dp)) {
+        sizeLabel?.let {
+            Surface(
+                color = FastDashRed.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(4.dp)
+            ) {
+                Text(
+                    text = "Size $it",
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    fontSize = 10.sp,
+                    color = FastDashRed,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 0.5.sp
+                )
+            }
+        }
+        
+        if (toppings.isNotEmpty()) {
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = PrimaryBlack.copy(alpha = 0.6f), fontWeight = FontWeight.Bold)) {
+                        append("Toppings: ")
+                    }
+                    withStyle(SpanStyle(color = TextGrey, fontWeight = FontWeight.Normal)) {
+                        append(toppings.joinToString(", "))
+                    }
+                },
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

@@ -3,12 +3,25 @@ package com.fastdash.app.data.model.response
 import com.google.gson.annotations.SerializedName
 
 data class CartToppingResponse(
-    val id: Long = 0L,
-    val name: String? = null,
+    @SerializedName(value = "id", alternate = ["cartToppingId", "cart_topping_id"])
+    private val rawId: Long? = null,
+    @SerializedName(value = "toppingId", alternate = ["topping_id"])
+    private val rawToppingId: Long? = null,
+    @SerializedName(value = "name", alternate = ["toppingName", "topping_name"])
+    private val rawName: String? = null,
     val price: Double = 0.0,
     @SerializedName(value = "imageUrl", alternate = ["image_url", "url", "secure_url"])
     val imageUrl: String? = null
-)
+) {
+    val id: Long
+        get() = rawToppingId ?: rawId ?: 0L
+
+    val cartToppingRowId: Long
+        get() = rawId ?: 0L
+
+    val name: String?
+        get() = rawName
+}
 
 data class CartItemResponse(
     val id: Long = 0L,

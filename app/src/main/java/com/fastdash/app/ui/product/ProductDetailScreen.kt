@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -66,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -99,27 +101,61 @@ fun ProductDetailScreen(
     product: ProductResponse?,
     sizes: List<ProductSizeResponse> = emptyList(),
     toppings: List<ToppingResponse> = emptyList(),
+    initialQuantity: Int = 1,
+    initialSizeId: Long? = null,
+    initialToppingIds: List<Long> = emptyList(),
+    initialSelectedToppingNames: List<String> = emptyList(),
+    initialNote: String = "",
     isLoading: Boolean = false,
     onBack: () -> Unit,
-    onAddToCart: (Long, Int, Long?, List<Long>) -> Unit,
-    onBuyNow: (Long, Int, Long?, List<Long>, Double) -> Unit
+    onAddToCart: (Long, Int, Long?, List<Long>, String?) -> Unit,
+    onBuyNow: (Long, Int, Long?, List<Long>, String?, Double) -> Unit
 ) {
     if (product == null) {
         ProductEmptyState(onBack)
         return
     }
 
-    var selectedSizeId by remember(product.id, sizes) { mutableStateOf<Long?>(null) }
-    var quantity by remember(product.id) { mutableIntStateOf(1) }
-    val selectedToppings = remember(product.id) { mutableStateListOf<Long>() }
-    var note by remember(product.id) { mutableStateOf("") }
+    var selectedSizeId by remember(product.id, initialSizeId) { mutableStateOf(initialSizeId) }
+    var quantity by remember(product.id, initialQuantity) { mutableIntStateOf(initialQuantity.coerceAtLeast(1)) }
+    val selectedToppings = remember(product.id, initialToppingIds) {
+        mutableStateListOf<Long>().apply { addAll(initialToppingIds.distinct()) }
+    }
+    val rememberedToppingNames = remember(product.id, initialSelectedToppingNames) {
+        initialSelectedToppingNames
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+    var note by remember(product.id, initialNote) { mutableStateOf(initialNote) }
 
-    LaunchedEffect(sizes) {
-        if (selectedSizeId == null) selectedSizeId = sizes.firstOrNull()?.id
+    LaunchedEffect(product.id, sizes, initialSizeId) {
+        if (sizes.isEmpty()) return@LaunchedEffect
+        val hasSelectedSize = selectedSizeId != null && sizes.any { it.id == selectedSizeId }
+        if (!hasSelectedSize) {
+            selectedSizeId = initialSizeId?.takeIf { initial -> sizes.any { it.id == initial } }
+                ?: sizes.firstOrNull()?.id
+        }
+    }
+
+    LaunchedEffect(product.id, toppings) {
+        if (toppings.isEmpty()) return@LaunchedEffect
+        val validToppingIds = toppings.map { it.id }.toSet()
+        val sanitizedIds = selectedToppings.filter { it in validToppingIds }
+        if (sanitizedIds.size != selectedToppings.size) {
+            selectedToppings.clear()
+            selectedToppings.addAll(sanitizedIds)
+        }
     }
 
     val unitPrice = sizes.firstOrNull { it.id == selectedSizeId }?.price ?: product.basePrice
-    val toppingsPrice = toppings.filter { selectedToppings.contains(it.id) }.sumOf { it.price }
+    val resolvedToppingIds = selectedToppings.filter { selectedId -> toppings.any { it.id == selectedId } }
+    val resolvedSelectedToppingNames = toppings
+        .filter { resolvedToppingIds.contains(it.id) }
+        .mapNotNull { it.name?.trim()?.takeIf { name -> name.isNotBlank() } }
+    val unavailableSelectedToppingNames = rememberedToppingNames
+        .filterNot { selectedName -> resolvedSelectedToppingNames.any { it.equals(selectedName, ignoreCase = true) } }
+    val toppingsPrice = toppings.filter { resolvedToppingIds.contains(it.id) }.sumOf { it.price }
     val totalPrice = (unitPrice + toppingsPrice) * quantity
     val badgeLabel = if (product.isCustomizable == 1) LABEL_FLEX else LABEL_BEST_SELLER
 
@@ -161,6 +197,12 @@ fun ProductDetailScreen(
                             }
                         )
                     }
+                    if (rememberedToppingNames.isNotEmpty()) {
+                        SelectedToppingsSummaryCard(
+                            selectedNames = resolvedSelectedToppingNames,
+                            unavailableNames = unavailableSelectedToppingNames
+                        )
+                    }
                     ProductNoteSection(note = note, onNoteChanged = { note = it })
                     if (sizes.isEmpty() && toppings.isEmpty()) {
                         EmptyOptionCard()
@@ -174,16 +216,67 @@ fun ProductDetailScreen(
             totalPrice = totalPrice,
             onDecrease = { if (quantity > 1) quantity-- },
             onIncrease = { quantity++ },
-            onBuyNowClick = { onBuyNow(product.id, quantity, selectedSizeId, selectedToppings.toList(), totalPrice) },
-            onAddToCartClick = { onAddToCart(product.id, quantity, selectedSizeId, selectedToppings.toList()) }
+            onBuyNowClick = { onBuyNow(product.id, quantity, selectedSizeId, resolvedToppingIds, note.takeIf { it.isNotBlank() }, totalPrice) },
+            onAddToCartClick = { onAddToCart(product.id, quantity, selectedSizeId, resolvedToppingIds, note.takeIf { it.isNotBlank() }) }
         )
+    }
+}
+
+@Composable
+private fun SelectedToppingsSummaryCard(
+    selectedNames: List<String>,
+    unavailableNames: List<String>
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Topping da chon",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PrimaryBlack
+            )
+            if (selectedNames.isNotEmpty()) {
+                Text(
+                    text = selectedNames.joinToString(", "),
+                    fontSize = 13.sp,
+                    color = PrimaryBlack,
+                    lineHeight = 18.sp
+                )
+            }
+            if (unavailableNames.isNotEmpty()) {
+                Text(
+                    text = "Khong con ap dung: ${unavailableNames.joinToString(", ")}",
+                    fontSize = 12.sp,
+                    color = FastDashRed,
+                    lineHeight = 17.sp
+                )
+                Text(
+                    text = "Ban can chon lai topping nay truoc khi cap nhat gio hang.",
+                    fontSize = 11.sp,
+                    color = TextGrey,
+                    textAlign = TextAlign.Start
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun ProductDetailTopBar(onBack: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -198,7 +291,9 @@ private fun ProductDetailTopBar(onBack: () -> Unit) {
 @Composable
 private fun ProductTopActionButton(icon: ImageVector, description: String, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.size(42.dp).clickable { onClick() },
+        modifier = Modifier
+            .size(48.dp)
+            .clickable { onClick() },
         shape = CircleShape,
         color = Color.Black.copy(alpha = 0.24f)
     ) {

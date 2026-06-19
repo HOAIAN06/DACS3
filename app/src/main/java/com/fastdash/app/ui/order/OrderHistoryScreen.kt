@@ -64,10 +64,10 @@ fun OrderHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Lịch sử đơn hàng".normalizeVietnameseText(), fontWeight = FontWeight.ExtraBold) },
+                title = { Text("L?ch s? don h�ng", fontWeight = FontWeight.ExtraBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại".normalizeVietnameseText())
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay l?i")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceWhite)
@@ -111,7 +111,7 @@ private fun OrderCard(order: OrderHistoryUiModel, onClick: () -> Unit) {
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = order.orderCode.normalizeVietnameseText().ifBlank { "Không có mã đơn".normalizeVietnameseText() },
+                        text = order.orderCode.ifBlank { "Kh�ng c� m� don" },
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 16.sp,
                         color = PrimaryBlack
@@ -137,7 +137,7 @@ private fun OrderCard(order: OrderHistoryUiModel, onClick: () -> Unit) {
             }
 
             Text(
-                text = order.itemPreview.normalizeVietnameseText().ifBlank { "Đơn giao hàng".normalizeVietnameseText() },
+                text = order.itemPreview.ifBlank { "�on giao h�ng" },
                 fontSize = 14.sp,
                 color = PrimaryBlack,
                 fontWeight = FontWeight.Medium
@@ -160,7 +160,7 @@ private fun OrderCard(order: OrderHistoryUiModel, onClick: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = PizzaHutRed),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                 ) {
-                    Text("Xem chi tiết".normalizeVietnameseText(), fontWeight = FontWeight.Bold)
+                    Text("Xem chi ti?t", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -189,8 +189,8 @@ private fun EmptyOrdersState(modifier: Modifier = Modifier) {
                     contentDescription = null,
                     tint = PizzaHutRed
                 )
-                Text("Bạn chưa có đơn hàng nào".normalizeVietnameseText(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Thực hiện đơn hàng đầu tiên ngay thôi!".normalizeVietnameseText(), color = TextSecondary, fontSize = 14.sp)
+                Text("B?n chua c� don h�ng n�o", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("Th?c hi?n don h�ng d?u ti�n ngay th�i!", color = TextSecondary, fontSize = 14.sp)
             }
         }
         Spacer(Modifier.height(24.dp))
