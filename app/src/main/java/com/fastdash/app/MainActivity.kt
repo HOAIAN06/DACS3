@@ -39,6 +39,7 @@ import com.fastdash.app.data.repository.AdminToppingRepository
 import com.fastdash.app.data.repository.CartRepository
 import com.fastdash.app.data.repository.OrderRepository
 import com.fastdash.app.data.repository.ProductRepository
+import com.fastdash.app.data.repository.ReviewRepository
 import com.fastdash.app.data.repository.UserRepository
 import com.fastdash.app.ui.admin.AdminBranchesScreen
 import com.fastdash.app.ui.admin.AdminCategoriesScreen
@@ -67,7 +68,10 @@ import com.fastdash.app.ui.order.OrderDetailScreen
 import com.fastdash.app.ui.order.OrderDetailUiModel
 import com.fastdash.app.ui.order.OrderHistoryScreen
 import com.fastdash.app.ui.order.OrderHistoryUiModel
+import com.fastdash.app.ui.order.OrderItemReviewUiModel
 import com.fastdash.app.ui.order.OrderItemUiModel
+import com.fastdash.app.ui.order.ReviewEditorUiModel
+import com.fastdash.app.ui.order.WriteReviewScreen
 import com.fastdash.app.ui.order.formatOrderDate
 import com.fastdash.app.ui.order.normalizeVietnameseText
 import com.fastdash.app.ui.payment.PaymentScreen
@@ -103,6 +107,7 @@ import com.fastdash.app.viewmodel.CartViewModel
 import com.fastdash.app.viewmodel.OrderViewModel
 import com.fastdash.app.viewmodel.ProductDetailViewModel
 import com.fastdash.app.viewmodel.ProfileViewModel
+import com.fastdash.app.viewmodel.ReviewViewModel
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.text.SimpleDateFormat
@@ -112,7 +117,7 @@ private enum class AppRoute {
     LOGIN, REGISTER, ADMIN_HOME, ADMIN_PRODUCT, ADMIN_ORDERS, ADMIN_CATEGORIES,
     ADMIN_ORDER_DETAIL, ADMIN_SIZES, ADMIN_TOPPINGS, ADMIN_CUSTOMERS, ADMIN_BRANCHES, ADMIN_REVENUE,
     ADMIN_PLACEHOLDER, FORGOT_PASSWORD, VERIFY_RESET_OTP, RESET_PASSWORD, HOME, PRODUCT_DETAIL, ORDER_HISTORY, ORDER_DETAIL,
-    PROFILE, EDIT_PROFILE, CART, CHECKOUT, PICK_LOCATION, PAYMENT, AI_ASSISTANT
+    PROFILE, EDIT_PROFILE, CART, CHECKOUT, PICK_LOCATION, PAYMENT, AI_ASSISTANT, REVIEW
 }
 
 private data class CartItemEditState(
@@ -149,6 +154,7 @@ class MainActivity : ComponentActivity() {
 
                 val cartRepository = remember { CartRepository(applicationContext) }
                 val productRepository = remember { ProductRepository(applicationContext) }
+                val reviewRepository = remember { ReviewRepository(applicationContext) }
                 val orderRepository = remember { OrderRepository(applicationContext) }
                 val userRepository = remember { UserRepository(applicationContext) }
                 val aiRepository = remember { AiRepository(applicationContext) }
@@ -165,6 +171,7 @@ class MainActivity : ComponentActivity() {
                 val orderViewModel: OrderViewModel = viewModel(factory = AppViewModelFactory { OrderViewModel(orderRepository) })
                 val productDetailViewModel: ProductDetailViewModel = viewModel(factory = AppViewModelFactory { ProductDetailViewModel(productRepository) })
                 val profileViewModel: ProfileViewModel = viewModel(factory = AppViewModelFactory { ProfileViewModel(userRepository) })
+                val reviewViewModel: ReviewViewModel = viewModel(factory = AppViewModelFactory { ReviewViewModel(reviewRepository) })
                 val aiAssistantViewModel: AiAssistantViewModel = viewModel(factory = AppViewModelFactory { AiAssistantViewModel(aiRepository) })
 
                 val scope = rememberCoroutineScope()
@@ -173,6 +180,7 @@ class MainActivity : ComponentActivity() {
                 var editingCartItem by remember { mutableStateOf<CartItemEditState?>(null) }
                 var productDetailFromAi by remember { mutableStateOf(false) }
                 var selectedOrderId by remember { mutableStateOf<Long?>(null) }
+                var selectedReviewDraft by remember { mutableStateOf<ReviewEditorUiModel?>(null) }
                 var adminSelectedOrderId by remember { mutableStateOf<Long?>(null) }
                 var adminOrdersInitialStatus by remember { mutableStateOf<String?>(null) }
                 var directCheckoutItem by remember { mutableStateOf<OrderItemRequest?>(null) }
@@ -225,6 +233,7 @@ class MainActivity : ComponentActivity() {
                 val aiInputText by aiAssistantViewModel.inputText.collectAsState()
                 val aiLoading by aiAssistantViewModel.isLoading.collectAsState()
                 val aiErrorMessage by aiAssistantViewModel.errorMessage.collectAsState()
+                val reviewUiState by reviewViewModel.uiState.collectAsState()
 
                 fun currentRole(): String = tokenManager.getRole().orEmpty().trim().uppercase()
                 fun isAdmin(): Boolean = currentRole() == "ADMIN"
@@ -235,6 +244,48 @@ class MainActivity : ComponentActivity() {
                 fun calculateOrderTotal(order: OrderResponse): Double {
                     return order.totalAmount.takeIf { it > 0.0 }
                         ?: (order.subtotal + order.shippingFee - order.discountAmount)
+                }
+                fun resolveReviewableItem(
+                    orderId: Long,
+                    itemId: Long,
+                    productId: Long,
+                    productName: String,
+                    productImageUrl: String
+                ) = reviewUiState.reviewableItems.firstOrNull {
+                    productId > 0L && it.productId == productId && (it.orderId == null || it.orderId == orderId)
+                } ?: reviewUiState.reviewableItems.firstOrNull {
+                    it.productName.normalizeVietnameseText().equals(productName.normalizeVietnameseText(), ignoreCase = true) &&
+                        (it.orderId == null || it.orderId == orderId)
+                } ?: reviewUiState.reviewableItems.firstOrNull {
+                    productImageUrl.isNotBlank() &&
+                        it.productImageUrl.normalizeVietnameseText().equals(productImageUrl.normalizeVietnameseText(), ignoreCase = true) &&
+                        (it.orderId == null || it.orderId == orderId)
+                }
+
+                fun resolveOrderItemReview(orderId: Long, productId: Long): OrderItemReviewUiModel? {
+                    val matchedReviewableItem = reviewUiState.reviewableItems.firstOrNull {
+                        it.productId == productId && (it.orderId == null || it.orderId == orderId)
+                    }
+
+                    val existingReview = matchedReviewableItem?.review ?: reviewUiState.myReviews.firstOrNull {
+                        it.orderId == orderId && it.productId == productId
+                    }
+
+                    return when {
+                        matchedReviewableItem != null -> OrderItemReviewUiModel(
+                            isReviewed = matchedReviewableItem.reviewed || existingReview != null,
+                            rating = existingReview?.rating,
+                            comment = existingReview?.comment.orEmpty()
+                        )
+
+                        existingReview != null -> OrderItemReviewUiModel(
+                            isReviewed = true,
+                            rating = existingReview.rating,
+                            comment = existingReview.comment.orEmpty()
+                        )
+
+                        else -> null
+                    }
                 }
 
                 fun clearCheckoutDrafts() {
@@ -716,6 +767,7 @@ class MainActivity : ComponentActivity() {
                                 productDetailFromAi = false
                                 selectedProduct = product
                                 productDetailViewModel.loadDetails(product.id)
+                                reviewViewModel.loadReviews(product.id)
                                 route = AppRoute.PRODUCT_DETAIL
                             },
                             onCheckout = { route = AppRoute.CART },
@@ -737,16 +789,16 @@ class MainActivity : ComponentActivity() {
                             orders = orderListState.map {
                                 val totalAmount = calculateOrderTotal(it)
                                 val normalizedItems = it.items.orEmpty()
-                                val firstItemName = normalizedItems.firstOrNull()?.productName.normalizeVietnameseText().orEmpty()
+                                val firstItemName = normalizedItems.firstOrNull()?.productName.normalizeVietnameseText()
                                 val firstItemQuantity = normalizedItems.firstOrNull()?.quantity ?: 0
                                 val createdAtValue = if (it.id == lastCreatedOrderId && it.createdAt.isNullOrBlank()) lastCreatedOrderCreatedAt else it.createdAt
                                 val itemPreview = when {
                                     firstItemName.isNotBlank() -> {
                                         val firstItemLabel = "$firstItemName x${firstItemQuantity.coerceAtLeast(1)}"
-                                        if (normalizedItems.size > 1) "$firstItemLabel va ${normalizedItems.size - 1} mon khac" else firstItemLabel
+                                        if (normalizedItems.size > 1) "$firstItemLabel và ${normalizedItems.size - 1} món khác" else firstItemLabel
                                     }
-                                    normalizedItems.sumOf { item -> item.quantity } > 0 -> "${normalizedItems.sumOf { item -> item.quantity }} mon"
-                                    else -> "Don giao hang"
+                                    normalizedItems.sumOf { item -> item.quantity } > 0 -> "${normalizedItems.sumOf { item -> item.quantity }} món"
+                                    else -> "Đơn giao hàng"
                                 }
                                 OrderHistoryUiModel(
                                     it.id,
@@ -795,9 +847,12 @@ class MainActivity : ComponentActivity() {
                                     imageUrl = product.imageUrl,
                                     isCustomizable = 1,
                                     categoryId = 0L,
-                                    categoryName = product.categoryName.orEmpty()
+                                    categoryName = product.categoryName.orEmpty(),
+                                    averageRating = 0.0,
+                                    reviewCount = 0
                                 )
                                 productDetailViewModel.loadDetails(product.id)
+                                reviewViewModel.loadReviews(product.id)
                                 route = AppRoute.PRODUCT_DETAIL
                             },
                             onBack = { route = AppRoute.HOME },
@@ -817,6 +872,7 @@ class MainActivity : ComponentActivity() {
                                     initialSelectedToppingNames = editingCartItem?.toppingNames ?: emptyList(),
                                     initialNote = editingCartItem?.note.orEmpty(),
                                     isLoading = productDetailLoading,
+                                    reviews = reviewUiState.reviews,
                                     onBack = {
                                         if (editingCartItem != null) {
                                             editingCartItem = null
@@ -857,17 +913,17 @@ class MainActivity : ComponentActivity() {
                         AppRoute.ORDER_HISTORY -> {
                             val uiOrders = orderListState.map {
                                 val normalizedItems = it.items.orEmpty()
-                                val firstItemName = normalizedItems.firstOrNull()?.productName.normalizeVietnameseText().orEmpty()
+                                val firstItemName = normalizedItems.firstOrNull()?.productName.normalizeVietnameseText()
                                 val firstItemQuantity = normalizedItems.firstOrNull()?.quantity ?: 0
                                 val totalQuantity = normalizedItems.sumOf { item -> item.quantity }
                                 val createdAtValue = if (it.id == lastCreatedOrderId && it.createdAt.isNullOrBlank()) lastCreatedOrderCreatedAt else it.createdAt
                                 val itemPreview = when {
                                     firstItemName.isNotBlank() -> {
                                         val firstItemLabel = "$firstItemName x${firstItemQuantity.coerceAtLeast(1)}"
-                                        if (normalizedItems.size > 1) "$firstItemLabel va ${normalizedItems.size - 1} mon khac" else firstItemLabel
+                                        if (normalizedItems.size > 1) "$firstItemLabel và ${normalizedItems.size - 1} món khác" else firstItemLabel
                                     }
-                                    totalQuantity > 0 -> "$totalQuantity mon"
-                                    else -> "Don giao hang"
+                                    totalQuantity > 0 -> "$totalQuantity món"
+                                    else -> "Đơn giao hàng"
                                 }
                                 OrderHistoryUiModel(
                                     it.id,
@@ -896,6 +952,14 @@ class MainActivity : ComponentActivity() {
                                         item.totalPrice.takeIf { total -> total > 0.0 } ?: (item.unitPrice * item.quantity)
                                     }
                                 val totalAmount = calculateOrderTotal(order)
+                                
+                                LaunchedEffect(order.id, order.status, order.orderStatus) {
+                                    val status = (order.orderStatus ?: order.status).orEmpty().trim().uppercase()
+                                    if (status == "COMPLETED") {
+                                        reviewViewModel.loadReviewableItems(order.id)
+                                    }
+                                }
+
                                 OrderDetailScreen(
                                     order = OrderDetailUiModel(
                                         id = order.id,
@@ -925,17 +989,34 @@ class MainActivity : ComponentActivity() {
                                             if (order.id == lastCreatedOrderId) lastCreatedOrderNote.normalizeVietnameseText() else ""
                                         },
                                         items = order.items.orEmpty().map { item ->
+                                            val matchedReviewableItem = resolveReviewableItem(
+                                                orderId = order.id,
+                                                itemId = item.id,
+                                                productId = item.productId,
+                                                productName = item.productName,
+                                                productImageUrl = item.productImageUrl.orEmpty()
+                                            )
                                             OrderItemUiModel(
                                                 id = item.id,
-                                                name = item.productName.normalizeVietnameseText().ifBlank { "Mon da dat" },
+                                                productId = matchedReviewableItem?.productId ?: item.productId,
+                                                name = matchedReviewableItem?.productName?.normalizeVietnameseText()?.ifBlank { "Món đã đặt" }
+                                                    ?: item.productName.normalizeVietnameseText().ifBlank { "Món đã đặt" },
+                                                productImageUrl = matchedReviewableItem?.productImageUrl.normalizeVietnameseText()
+                                                    .ifBlank { item.productImageUrl.normalizeVietnameseText() },
                                                 sizeName = item.sizeName.normalizeVietnameseText().orEmpty(),
                                                 toppings = item.toppings.map { topping -> topping.normalizeVietnameseText() }.filter { it.isNotBlank() },
                                                 quantity = item.quantity,
                                                 unitPrice = item.unitPrice,
-                                                note = item.note.normalizeVietnameseText()
+                                                note = item.note.normalizeVietnameseText(),
+                                                review = resolveOrderItemReview(order.id, matchedReviewableItem?.productId ?: item.productId)
                                             )
                                         }
                                     ),
+                                    isReviewSectionLoading = reviewUiState.loadingReviewableItems,
+                                    reviewSectionError = reviewUiState.reviewableItemsErrorMessage,
+                                    onRetryReviewSection = {
+                                        reviewViewModel.loadReviewableItems(order.id)
+                                    },
                                     onBack = { route = AppRoute.ORDER_HISTORY },
                                     onReorder = {
                                         scope.launch {
@@ -965,6 +1046,55 @@ class MainActivity : ComponentActivity() {
                                             if (orderViewModel.cancelOrder(it.id)) {
                                                 selectedOrderId?.let { id -> orderViewModel.loadOrderDetail(id) }
                                             }
+                                        }
+                                    },
+                                    onReview = { item ->
+                                        if (item.review?.isReviewed == true) {
+                                            Toast.makeText(context, "Món này đã được đánh giá", Toast.LENGTH_SHORT).show()
+                                        } else if (reviewUiState.loadingReviewableItems) {
+                                            Toast.makeText(context, "Đang tải trạng thái đánh giá, vui lòng thử lại", Toast.LENGTH_SHORT).show()
+                                        } else if (!reviewUiState.reviewableItemsLoadedSuccessfully) {
+                                            Toast.makeText(context, "Không thể tải trạng thái đánh giá. Vui lòng thử lại.", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            reviewViewModel.clearError()
+                                            selectedOrderId = order.id
+
+                                            val reviewableItem = resolveReviewableItem(
+                                                orderId = order.id,
+                                                itemId = item.id,
+                                                productId = item.productId,
+                                                productName = item.name,
+                                                productImageUrl = item.productImageUrl
+                                            )
+
+                                            val resolvedProductId = reviewableItem?.productId ?: item.productId
+                                            if (resolvedProductId <= 0L) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Không xác định được món cần đánh giá. Vui lòng tải lại chi tiết đơn hàng.",
+                                                    Toast.LENGTH_LONG
+                                                ).show()
+                                                selectedOrderId?.let { orderViewModel.loadOrderDetail(it) }
+                                                reviewViewModel.loadReviewableItems(order.id)
+                                                return@OrderDetailScreen
+                                            }
+
+                                            val imageUrl = reviewableItem?.productImageUrl?.takeIf { it.isNotBlank() }
+                                                ?: item.productImageUrl.takeIf { it.isNotBlank() }
+                                                ?: ""
+
+                                            val productName = reviewableItem?.productName?.takeIf { it.isNotBlank() }
+                                                ?: item.name
+
+                                            selectedReviewDraft = ReviewEditorUiModel(
+                                                orderId = order.id,
+                                                productId = resolvedProductId,
+                                                productName = productName,
+                                                productImageUrl = imageUrl,
+                                                initialRating = 0,
+                                                initialComment = ""
+                                            )
+                                            route = AppRoute.REVIEW
                                         }
                                     },
                                     onRetryPayment = {
@@ -1112,7 +1242,7 @@ class MainActivity : ComponentActivity() {
                                                 openPendingPayment(forceRefreshUrl = paymentUrl.isNullOrBlank())
                                             }
                                         } else {
-                                            Toast.makeText(context, "Dat hang thanh cong", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Đặt hàng thành công", Toast.LENGTH_SHORT).show()
                                             route = if (selectedOrderId != null) AppRoute.ORDER_DETAIL else AppRoute.ORDER_HISTORY
                                         }
                                     }
@@ -1214,6 +1344,45 @@ class MainActivity : ComponentActivity() {
                                 profileViewModel.updateProfile(fullName = fullName, email = email, phone = phone)
                             }
                         )
+                        AppRoute.REVIEW -> {
+                            selectedReviewDraft?.let { draft ->
+                                WriteReviewScreen(
+                                    reviewItem = draft,
+                                    submitting = reviewUiState.submitting,
+                                    submitSuccess = reviewUiState.submitSuccess,
+                                    submitMessage = reviewUiState.submitMessage,
+                                    errorMessage = reviewUiState.errorMessage,
+                                    onBack = {
+                                        reviewViewModel.consumeSubmitSuccess()
+                                        reviewViewModel.clearError()
+                                        selectedReviewDraft = null
+                                        route = AppRoute.ORDER_DETAIL
+                                    },
+                                    onDismissSuccess = {
+                                        val productId = draft.productId
+                                        val orderId = draft.orderId
+                                        
+                                        reviewViewModel.consumeSubmitSuccess()
+                                        reviewViewModel.clearError()
+                                        
+                                        // Load lại dữ liệu
+                                        orderViewModel.loadOrderDetail(orderId)
+                                        reviewViewModel.loadReviewableItems(orderId)
+                                        if (productId > 0) {
+                                            reviewViewModel.loadReviews(productId)
+                                        }
+
+                                        selectedReviewDraft = null
+                                        route = AppRoute.ORDER_DETAIL
+                                    },
+                                    onSubmit = { orderId, productId, rating, comment ->
+                                        reviewViewModel.submitReview(orderId, productId, rating, comment)
+                                    }
+                                )
+                            } ?: run {
+                                route = AppRoute.ORDER_DETAIL
+                            }
+                        }
                         else -> route = rootRoute()
                     }
                 }

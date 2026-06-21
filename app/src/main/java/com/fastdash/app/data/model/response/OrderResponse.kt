@@ -55,8 +55,12 @@ data class OrderResponse(
 
 data class OrderItemResponse(
     val id: Long = 0L,
+    @SerializedName(value = "productId", alternate = ["product_id"])
+    val productId: Long = 0L,
     @SerializedName(value = "productName", alternate = ["product_name", "name"])
     val productName: String = "",
+    @SerializedName(value = "productImageUrl", alternate = ["product_image_url", "imageUrl", "image_url"])
+    val productImageUrl: String? = null,
     @SerializedName(value = "sizeName", alternate = ["size_name"])
     val sizeName: String? = null,
     val quantity: Int = 0,

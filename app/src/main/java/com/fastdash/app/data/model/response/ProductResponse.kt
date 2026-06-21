@@ -10,5 +10,7 @@ data class ProductResponse(
     @SerializedName(value = "imageUrl", alternate = ["image_url", "url", "secure_url"]) val imageUrl: String?,
     val isCustomizable: Int,
     @SerializedName(value = "categoryId", alternate = ["category_id"]) val categoryId: Long,
-    @SerializedName(value = "categoryName", alternate = ["category_name"]) val categoryName: String
+    @SerializedName(value = "categoryName", alternate = ["category_name"]) val categoryName: String,
+    @SerializedName("averageRating") val averageRating: Double? = 0.0,
+    @SerializedName("reviewCount") val reviewCount: Int? = 0
 )

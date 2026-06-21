@@ -43,6 +43,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -75,9 +76,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.fastdash.app.data.model.response.ProductResponse
 import com.fastdash.app.data.model.response.ProductSizeResponse
+import com.fastdash.app.data.model.response.ReviewResponse
 import com.fastdash.app.data.model.response.ToppingResponse
 import com.fastdash.app.utils.CurrencyUtils
 import com.fastdash.app.utils.ImageUtils
+
+import java.util.Locale
 
 private val FastDashRed = Color(0xFFD6092F)
 private val FastDashRedDark = Color(0xFF9B0622)
@@ -107,6 +111,7 @@ fun ProductDetailScreen(
     initialSelectedToppingNames: List<String> = emptyList(),
     initialNote: String = "",
     isLoading: Boolean = false,
+    reviews: List<ReviewResponse> = emptyList(),
     onBack: () -> Unit,
     onAddToCart: (Long, Int, Long?, List<Long>, String?) -> Unit,
     onBuyNow: (Long, Int, Long?, List<Long>, String?, Double) -> Unit
@@ -207,6 +212,11 @@ fun ProductDetailScreen(
                     if (sizes.isEmpty() && toppings.isEmpty()) {
                         EmptyOptionCard()
                     }
+                }
+            }
+            if (reviews.isNotEmpty()) {
+                item {
+                    ProductReviewSection(reviews = reviews)
                 }
             }
         }
@@ -347,7 +357,11 @@ private fun ProductInfoCard(product: ProductResponse, displayPrice: Double, badg
             modifier = Modifier.fillMaxWidth().padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ProductBadgeRow(badgeLabel = badgeLabel)
+            ProductBadgeRow(
+                badgeLabel = badgeLabel,
+                averageRating = product.averageRating ?: 0.0,
+                reviewCount = product.reviewCount ?: 0
+            )
             Text(
                 text = product.name,
                 fontSize = 29.sp,
@@ -377,7 +391,7 @@ private fun ProductInfoCard(product: ProductResponse, displayPrice: Double, badg
 }
 
 @Composable
-private fun ProductBadgeRow(badgeLabel: String) {
+private fun ProductBadgeRow(badgeLabel: String, averageRating: Double, reviewCount: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(color = SoftPink, shape = RoundedCornerShape(50)) {
             Text(
@@ -395,7 +409,8 @@ private fun ProductBadgeRow(badgeLabel: String) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(Icons.Filled.Star, contentDescription = null, tint = Color(0xFFF4A622), modifier = Modifier.size(14.dp))
-                Text("4.8", color = PrimaryBlack, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                val ratingText = if (reviewCount > 0) String.format(Locale.getDefault(), "%.1f (%d)", averageRating, reviewCount) else "Chưa có đánh giá"
+                Text(ratingText, color = PrimaryBlack, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -721,6 +736,104 @@ private fun ProductEmptyState(onBack: () -> Unit) {
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(LABEL_BACK, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProductReviewSection(reviews: List<ReviewResponse>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Đánh giá từ khách hàng (${reviews.size})",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = PrimaryBlack
+        )
+        reviews.forEach { review ->
+            ReviewItem(review = review)
+            HorizontalDivider(color = BorderGrey.copy(alpha = 0.5f))
+        }
+    }
+}
+
+@Composable
+private fun ReviewItem(review: ReviewResponse) {
+    val displayName = review.userName?.takeIf { it.isNotBlank() } ?: "Khách hàng"
+    val displayDate = review.createdAt?.takeIf { it.isNotBlank() }?.take(10).orEmpty()
+    val avatarUrl = review.userAvatar ?: "https://ui-avatars.com/api/?name=$displayName&background=random"
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = avatarUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+            Column {
+                Text(
+                    text = displayName,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryBlack
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    repeat(5) { index ->
+                        Icon(
+                            imageVector = Icons.Filled.Star,
+                            contentDescription = null,
+                            tint = if (index < review.rating) Color(0xFFF4A622) else Color(0xFFE0E0E0),
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                    if (displayDate.isNotBlank()) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = displayDate,
+                            fontSize = 12.sp,
+                            color = TextGrey
+                        )
+                    }
+                }
+            }
+        }
+        review.comment?.let {
+            if (it.isNotBlank()) {
+                Text(
+                    text = it,
+                    fontSize = 14.sp,
+                    color = PrimaryBlack,
+                    lineHeight = 20.sp
+                )
+            }
+        }
+        if (review.images.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(review.images) { imageUrl ->
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
                 }
             }
         }

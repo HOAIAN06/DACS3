@@ -10,6 +10,7 @@ import com.fastdash.app.data.remote.api.CategoryApi
 import com.fastdash.app.data.remote.api.OrderApi
 import com.fastdash.app.data.remote.api.ProductApi
 import com.fastdash.app.data.remote.api.UserApi
+import com.fastdash.app.data.remote.api.ReviewApi
 import com.fastdash.app.data.remote.interceptor.AuthInterceptor
 import com.fastdash.app.data.remote.api.AdminProductApi
 import com.fastdash.app.data.remote.api.AdminUserApi
@@ -103,6 +104,11 @@ object RetrofitClient {
 	fun cartApi(context: Context): CartApi {
 		return getRetrofit(context).create(CartApi::class.java)
 	}
+
+	fun reviewApi(context: Context): ReviewApi {
+		return getRetrofit(context).create(ReviewApi::class.java)
+	}
+
 	fun adminProductApi(context: Context): AdminProductApi {
 		return getRetrofit(context).create(AdminProductApi::class.java)
 	}
